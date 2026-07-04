@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1783128328128,
+    "name": "Test User",
+    "email": "test@example.com",
+    "subject": "Test ticket",
+    "priority": "high",
+    "message": "Hello from curl",
+    "status": "open",
+    "createdAt": "2026-07-04T01:25:28.128Z"
+  }
+]

@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>ByteLabs — Admin Panel</title>
+        <link rel="stylesheet" href="/style.css">
+    </head>
+    <body>
+        <div style="max-width:1100px;margin:40px auto;">
+            <div class="toolbar" style="justify-content:space-between;align-items:center;">
+                <h1 style="margin:0;">Support admin panel</h1>
+                <button id="logout-btn" type="button">Logout</button>
+            </div>
+            <div id="admin-status" class="hint" style="margin-bottom:12px;"></div>
+            <div id="admin-tickets"></div>
+        </div>
+        <script>
+            const statusEl = document.getElementById('admin-status');
+            const ticketList = document.getElementById('admin-tickets');
+
+            async function loadTickets() {
+                const res = await fetch('/admin/tickets');
+                const data = await res.json();
+                if (!Array.isArray(data)) {
+                    ticketList.innerHTML = '<div class="card">Unable to load tickets.</div>';
+                    return;
+                }
+
+                if (!data.length) {
+                    ticketList.innerHTML = '<div class="card">No tickets found.</div>';
+                    return;
+                }
+
+                ticketList.innerHTML = data.map(ticket => `
+                    <div class="card">
+                        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                            <strong>#${ticket.id} · ${escapeHtml(ticket.subject)}</strong>
+                            <span>${escapeHtml(ticket.status || 'open').toUpperCase()}</span>
+                        </div>
+                        <div style="margin-top:8px;color:#555;">
+                            <div><b>From:</b> ${escapeHtml(ticket.name || 'Anonymous')} (${escapeHtml(ticket.email || 'No email')})</div>
+                            <div><b>Priority:</b> ${escapeHtml(ticket.priority || 'medium')}</div>
+                            <div><b>Created:</b> ${escapeHtml(ticket.createdAt || '')}</div>
+                        </div>
+                        <p style="white-space:pre-wrap;">${escapeHtml(ticket.message || '')}</p>
+                        <label>
+                            Status
+                            <select data-id="${ticket.id}" data-field="status" class="admin-control">
+                                <option value="open" ${ticket.status === 'open' ? 'selected' : ''}>Open</option>
+                                <option value="pending" ${ticket.status === 'pending' ? 'selected' : ''}>Pending</option>
+                                <option value="resolved" ${ticket.status === 'resolved' ? 'selected' : ''}>Resolved</option>
+                            </select>
+                        </label>
+                        <label>
+                            Priority
+                            <select data-id="${ticket.id}" data-field="priority" class="admin-control">
+                                <option value="low" ${ticket.priority === 'low' ? 'selected' : ''}>Low</option>
+                                <option value="medium" ${ticket.priority === 'medium' ? 'selected' : ''}>Medium</option>
+                                <option value="high" ${ticket.priority === 'high' ? 'selected' : ''}>High</option>
+                                <option value="urgent" ${ticket.priority === 'urgent' ? 'selected' : ''}>Urgent</option>
+                            </select>
+                        </label>
+                        <label>
+                            Notes
+                            <textarea data-id="${ticket.id}" data-field="notes" rows="3">${escapeHtml(ticket.notes || '')}</textarea>
+                        </label>
+                        <div class="toolbar">
+                            <button type="button" onclick="saveTicket(${ticket.id})">Save</button>
+                            <button type="button" onclick="deleteTicket(${ticket.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            function escapeHtml(value = '') {
+                return String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/\"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            window.saveTicket = async function(id) {
+                const card = document.querySelector(`[data-id="${id}"]`)?.closest('.card');
+                const status = card?.querySelector('[data-field="status"]').value;
+                const priority = card?.querySelector('[data-field="priority"]').value;
+                const notes = card?.querySelector('[data-field="notes"]').value;
+                const res = await fetch(`/admin/tickets/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status, priority, notes })
+                });
+                const data = await res.json();
+                statusEl.textContent = data.error ? data.error : 'Ticket updated.';
+                if (!data.error) await loadTickets();
+            };
+
+            window.deleteTicket = async function(id) {
+                const res = await fetch(`/admin/tickets/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                statusEl.textContent = data.error ? data.error : 'Ticket deleted.';
+                if (!data.error) await loadTickets();
+            };
+
+            document.getElementById('logout-btn').addEventListener('click', async () => {
+                await fetch('/admin/logout', { method: 'POST' });
+                window.location.href = '/admin/login';
+            });
+
+            loadTickets().catch(() => {
+                statusEl.textContent = 'Unable to load admin tickets.';
+            });
+        </script>
+    </body>
+</html>

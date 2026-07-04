@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>ByteLabs — Admin Login</title>
+        <link rel="stylesheet" href="/style.css">
+    </head>
+    <body>
+        <div style="max-width:480px;margin:40px auto;">
+            <div class="card">
+                <h1 style="margin-top:0;">Admin login</h1>
+                <form id="admin-login-form">
+                    <label>
+                        Username
+                        <input id="admin-username" name="username" required>
+                    </label>
+                    <label>
+                        Password
+                        <input id="admin-password" name="password" type="password" required>
+                    </label>
+                    <button type="submit">Sign in</button>
+                    <p id="admin-login-status" class="hint" style="margin-top:8px;"></p>
+                </form>
+            </div>
+        </div>
+        <script>
+            const form = document.getElementById('admin-login-form');
+            const status = document.getElementById('admin-login-status');
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                status.textContent = 'Signing in...';
+                const res = await fetch('/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('admin-username').value,
+                        password: document.getElementById('admin-password').value
+                    })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    status.textContent = data.error;
+                    return;
+                }
+                window.location.href = '/admin';
+            });
+        </script>
+    </body>
+</html>

@@ -1,10 +1,12 @@
 const http = require("http");
+const crypto = require("crypto");
 const express = require("express");
 const fs = require("fs");
 const { Writable, PassThrough } = require("stream");
 const { spawnSync } = require("child_process");
 const rateLimit = require("express-rate-limit");
 const { WebSocketServer } = require("ws");
+require("dotenv").config();
 const { encrypt, decrypt } = require("./crypto");
 const speakeasy = require("speakeasy");
 const { Client } = require("discord.js-selfbot-v13");
@@ -60,16 +62,22 @@ function canUseArecord() {
 }
 
 const app = express();
-const PORT = 3000;
-const FILE = "./vault.json";
+const PORT = Number(process.env.PORT || 3000);
+const FILE = process.env.VAULT_FILE || "./vault.json";
+const SUPPORT_FILE = process.env.SUPPORT_TICKETS_FILE || "./support-tickets.json";
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
+const ADMIN_SESSION_TTL_MS = Number(process.env.ADMIN_SESSION_TTL_MS || 8 * 60 * 60 * 1000);
 const discordClients = new Map();
 const discordVoiceConnections = new Map();
 const voiceAudioSessions = new Map();
 const oneYear = 365 * 24 * 60 * 60 * 1000;
 const browserVoiceSockets = new Map(); // Map(sessionKey => Set(ws))
+const adminSessions = new Map();
 
 app.set("trust proxy", 1);
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // 🔒 Rate limiting middleware
 const strictLimiter = rateLimit({
@@ -127,6 +135,52 @@ function load() {
 
 function save(data) {
     fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+}
+
+function loadSupportTickets() {
+    if (!fs.existsSync(SUPPORT_FILE)) return [];
+    try {
+        const parsed = JSON.parse(fs.readFileSync(SUPPORT_FILE, "utf8"));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveSupportTickets(tickets) {
+    fs.writeFileSync(SUPPORT_FILE, JSON.stringify(tickets, null, 2));
+}
+
+function parseCookies(req) {
+    const cookieHeader = req.headers.cookie || "";
+    return cookieHeader.split(";").reduce((acc, pair) => {
+        const [key, ...rest] = pair.split("=");
+        if (!key) return acc;
+        acc[key.trim()] = decodeURIComponent(rest.join("=")).trim();
+        return acc;
+    }, {});
+}
+
+function createAdminSession() {
+    return crypto.randomBytes(24).toString("hex");
+}
+
+function requireAdmin(req, res, next) {
+    const cookies = parseCookies(req);
+    const sessionId = cookies.admin_session;
+
+    if (!sessionId) {
+        return res.redirect("/admin/login");
+    }
+
+    const session = adminSessions.get(sessionId);
+    if (!session || Date.now() > session.expiresAt) {
+        adminSessions.delete(sessionId);
+        return res.redirect("/admin/login");
+    }
+
+    req.admin = session;
+    next();
 }
 
 // 🔐 Generate live TOTP code
@@ -1735,9 +1789,133 @@ app.post("/update", strictLimiter, async (req, res) => {
     res.json(enriched);
 });
 
+// Support ticket endpoints
+app.get("/support/tickets", (req, res) => {
+    res.json(loadSupportTickets());
+});
+
+app.post("/admin/login", (req, res) => {
+    const { username, password } = req.body || {};
+
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+        const sessionId = createAdminSession();
+        adminSessions.set(sessionId, {
+            username: ADMIN_USERNAME,
+            expiresAt: Date.now() + ADMIN_SESSION_TTL_MS
+        });
+
+        res.setHeader("Set-Cookie", `admin_session=${sessionId}; HttpOnly; Path=/; Max-Age=${Math.floor(ADMIN_SESSION_TTL_MS / 1000)}`);
+        return res.json({ success: true });
+    }
+
+    res.status(401).json({ error: "Invalid admin credentials" });
+});
+
+app.post("/admin/logout", (req, res) => {
+    const cookies = parseCookies(req);
+    const sessionId = cookies.admin_session;
+    if (sessionId) adminSessions.delete(sessionId);
+    res.setHeader("Set-Cookie", "admin_session=; HttpOnly; Path=/; Max-Age=0");
+    res.json({ success: true });
+});
+
+app.get("/admin/tickets", requireAdmin, (req, res) => {
+    res.json(loadSupportTickets());
+});
+
+app.patch("/admin/tickets/:id", requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    const { status, priority, notes } = req.body || {};
+
+    if (!Number.isInteger(id)) {
+        return res.json({ error: "Invalid ticket id" });
+    }
+
+    const tickets = loadSupportTickets();
+    const ticket = tickets.find(item => item.id === id);
+
+    if (!ticket) {
+        return res.json({ error: "Ticket not found" });
+    }
+
+    if (status) ticket.status = status;
+    if (priority) ticket.priority = priority;
+    if (typeof notes === "string") ticket.notes = notes;
+
+    saveSupportTickets(tickets);
+    res.json(ticket);
+});
+
+app.delete("/admin/tickets/:id", requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+        return res.json({ error: "Invalid ticket id" });
+    }
+
+    const tickets = loadSupportTickets().filter(item => item.id !== id);
+    saveSupportTickets(tickets);
+    res.json({ success: true });
+});
+
+app.post("/support/tickets", (req, res) => {
+    const { name, email, subject, priority, message } = req.body || {};
+
+    if (!subject || !message) {
+        return res.json({ error: "Subject and message are required" });
+    }
+
+    const tickets = loadSupportTickets();
+    const ticket = {
+        id: Date.now(),
+        name: name || "Anonymous",
+        email: email || "",
+        subject: subject.trim(),
+        priority: priority || "medium",
+        message: message.trim(),
+        status: "open",
+        createdAt: new Date().toISOString()
+    };
+
+    tickets.unshift(ticket);
+    saveSupportTickets(tickets);
+    res.json(ticket);
+});
+
+app.patch("/support/tickets/:id", (req, res) => {
+    const id = Number(req.params.id);
+    const { status } = req.body || {};
+
+    if (!Number.isInteger(id)) {
+        return res.json({ error: "Invalid ticket id" });
+    }
+
+    const tickets = loadSupportTickets();
+    const ticket = tickets.find(item => item.id === id);
+
+    if (!ticket) {
+        return res.json({ error: "Ticket not found" });
+    }
+
+    ticket.status = status || ticket.status || "open";
+    saveSupportTickets(tickets);
+    res.json(ticket);
+});
+
 // Serve panel without .html extension
 app.get("/discord-account-manager/panel", (req, res) => {
     res.sendFile(__dirname + "/public/discord-account-manager/panel.html");
+});
+
+app.get("/support", (req, res) => {
+    res.sendFile(__dirname + "/public/support/index.html");
+});
+
+app.get("/admin/login", (req, res) => {
+    res.sendFile(__dirname + "/public/admin/login.html");
+});
+
+app.get("/admin", requireAdmin, (req, res) => {
+    res.sendFile(__dirname + "/public/admin/index.html");
 });
 
 // 404 Handler - catch all unmatched routes
