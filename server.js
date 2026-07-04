@@ -66,9 +66,16 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const FILE = process.env.VAULT_FILE || "./vault.json";
 const SAFE_DATA_ROOT = path.resolve(__dirname);
+const CANONICAL_SAFE_DATA_ROOT = fs.realpathSync(SAFE_DATA_ROOT);
 const RAW_SUPPORT_FILE = process.env.SUPPORT_TICKETS_FILE || "./support-tickets.json";
-const SUPPORT_FILE = path.resolve(SAFE_DATA_ROOT, RAW_SUPPORT_FILE);
-if (SUPPORT_FILE !== SAFE_DATA_ROOT && !SUPPORT_FILE.startsWith(SAFE_DATA_ROOT + path.sep)) {
+const RESOLVED_SUPPORT_FILE = path.resolve(CANONICAL_SAFE_DATA_ROOT, RAW_SUPPORT_FILE);
+const SUPPORT_PARENT_DIR = path.dirname(RESOLVED_SUPPORT_FILE);
+const CANONICAL_SUPPORT_PARENT_DIR = fs.existsSync(SUPPORT_PARENT_DIR)
+    ? fs.realpathSync(SUPPORT_PARENT_DIR)
+    : SUPPORT_PARENT_DIR;
+const SUPPORT_FILE = path.join(CANONICAL_SUPPORT_PARENT_DIR, path.basename(RESOLVED_SUPPORT_FILE));
+const supportRelativePath = path.relative(CANONICAL_SAFE_DATA_ROOT, SUPPORT_FILE);
+if (supportRelativePath.startsWith("..") || path.isAbsolute(supportRelativePath)) {
     throw new Error("Invalid SUPPORT_TICKETS_FILE path: must stay within application directory");
 }
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
