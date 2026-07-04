@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>ByteLabs — Support</title>
+        <link rel="stylesheet" href="/style.css">
+    </head>
+    <body>
+        <div class="support-shell">
+            <header class="site-header">
+                <a href="/" style="color:#fff;text-decoration:none;">← Back home</a>
+                <h1 style="margin:6px 0 4px;">Support Center</h1>
+                <p class="hint" style="color:#ccc;">Open a new ticket or update an existing one below.</p>
+            </header>
+
+            <section class="card">
+                <h2 style="margin-top:0;">Create a ticket</h2>
+                <form id="ticket-form">
+                    <label>
+                        Name
+                        <input id="ticket-name" name="name" required>
+                    </label>
+                    <label>
+                        Email
+                        <input id="ticket-email" name="email" type="email" placeholder="you@example.com">
+                    </label>
+                    <label>
+                        Subject
+                        <input id="ticket-subject" name="subject" required>
+                    </label>
+                    <label>
+                        Priority
+                        <select id="ticket-priority" name="priority">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </label>
+                    <label>
+                        Message
+                        <textarea id="ticket-message" name="message" rows="6" required></textarea>
+                    </label>
+                    <button type="submit">Create ticket</button>
+                    <p id="ticket-status" class="hint" style="color:#666; margin-top:8px;"></p>
+                </form>
+            </section>
+
+            <section class="card">
+                <div class="toolbar">
+                    <h2 style="margin:0;">Recent tickets</h2>
+                    <button id="refresh-btn" type="button">Refresh</button>
+                </div>
+                <div id="tickets-list"></div>
+            </section>
+        </div>
+
+        <script src="/support/app.js"></script>
+    </body>
+</html>
