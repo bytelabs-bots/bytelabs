@@ -361,7 +361,8 @@ function startVoiceAudioSession(index, guildId, connection) {
     player.play(resource);
 
     if (HEADLESS_ENV) {
-        console.warn(`[voice] server running in headless mode; disabling local mic/speaker but accepting browser audio for ${sessionKey}`);
+        const safeSessionKey = String(sessionKey).replace(/[\r\n]/g, "");
+        console.warn(`[voice] server running in headless mode; disabling local mic/speaker but accepting browser audio for ${safeSessionKey}`);
         const session = {
             connection,
             player,
