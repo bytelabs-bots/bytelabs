@@ -1981,17 +1981,17 @@ app.get("/discord-account-manager/panel", (req, res) => {
     res.sendFile(__dirname + "/public/discord-account-manager/panel.html");
 });
 
-app.get("/support", (req, res) => {
+app.get("/support", adminPageLimiter, (req, res) => {
     res.sendFile(__dirname + "/public/support/index.html");
-});
-
-app.get("/admin/login", adminPageLimiter, (req, res) => {
-    res.sendFile(__dirname + "/public/admin/login.html");
 });
 
 const adminPageLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100
+});
+
+app.get("/admin/login", adminPageLimiter, (req, res) => {
+    res.sendFile(__dirname + "/public/admin/login.html");
 });
 
 app.get("/admin", requireAdmin, adminPageLimiter, (req, res) => {
