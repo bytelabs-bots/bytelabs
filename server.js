@@ -483,7 +483,8 @@ function startVoiceAudioSession(index, guildId, connection) {
                             console.warn(`[voice] failed to send remote audio to browser: ${error?.message || error}`);
                         }
                     }
-                    console.log(`[voice] forwarded ${chunk.length || chunk.byteLength} bytes of remote audio to ${session.browserSockets.size} browser(s) for ${sessionKey}`);
+                    const safeSessionKey = String(sessionKey).replace(/[\r\n]/g, "");
+                    console.log(`[voice] forwarded ${chunk.length || chunk.byteLength} bytes of remote audio to ${session.browserSockets.size} browser(s) for ${safeSessionKey}`);
                 }
             });
 
