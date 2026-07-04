@@ -64,9 +64,15 @@ function canUseArecord() {
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
-const FILE = process.env.VAULT_FILE || "./vault.json";
+const RAW_FILE = process.env.VAULT_FILE || "./vault.json";
 const SAFE_DATA_ROOT = path.resolve(__dirname);
 const CANONICAL_SAFE_DATA_ROOT = fs.realpathSync(SAFE_DATA_ROOT);
+const RESOLVED_FILE = path.resolve(CANONICAL_SAFE_DATA_ROOT, RAW_FILE);
+const fileCandidateRelative = path.relative(CANONICAL_SAFE_DATA_ROOT, RESOLVED_FILE);
+if (fileCandidateRelative.startsWith("..") || path.isAbsolute(fileCandidateRelative)) {
+    throw new Error("Invalid VAULT_FILE path: must stay within application directory");
+}
+const FILE = RESOLVED_FILE;
 const RAW_SUPPORT_FILE = process.env.SUPPORT_TICKETS_FILE || "./support-tickets.json";
 const RESOLVED_SUPPORT_FILE = path.resolve(CANONICAL_SAFE_DATA_ROOT, RAW_SUPPORT_FILE);
 const supportCandidateRelative = path.relative(CANONICAL_SAFE_DATA_ROOT, RESOLVED_SUPPORT_FILE);
