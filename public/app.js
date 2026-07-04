@@ -60,6 +60,7 @@ function renderVault() {
 // 🔓 unlock vault
 async function loadVault() {
     masterKey = document.getElementById("master").value;
+    const vaultOwner = document.getElementById("vaultUser") ? document.getElementById("vaultUser").value.trim() : undefined;
 
     if (!masterKey) {
         vaultEntries = [];
@@ -70,7 +71,7 @@ async function loadVault() {
     const res = await fetch("/get", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ master: masterKey })
+        body: JSON.stringify({ master: masterKey, username: vaultOwner })
     });
 
     const data = await res.json();
@@ -110,11 +111,13 @@ async function addEntry() {
             .filter(Boolean)
     };
 
+    const vaultOwner = document.getElementById("vaultUser") ? document.getElementById("vaultUser").value.trim() : undefined;
     const res = await fetch("/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             master: masterKey,
+            username: vaultOwner,
             entry
         })
     });
@@ -201,10 +204,11 @@ function startEdit(idx) {
                 backupCodes: document.getElementById('backup').value.split('\n').filter(Boolean)
             };
 
+            const vaultOwner = document.getElementById("vaultUser") ? document.getElementById("vaultUser").value.trim() : undefined;
             const res = await fetch('/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ master: masterKey, index: idx, entry: updated })
+                body: JSON.stringify({ master: masterKey, username: vaultOwner, index: idx, entry: updated })
             });
 
             const data = await res.json();

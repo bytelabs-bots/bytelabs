@@ -21,6 +21,7 @@
                 <p class="hint">Connect and disconnect Discord accounts from your stored vault tokens with Discord selfbot support.</p>
 
                 <div class="panel">
+                    <input id="vaultUser" placeholder="Vault username">
                     <input id="master" type="password" placeholder="Master password">
                     <div class="actions-row">
                         <button onclick="loadAccounts()">Load Accounts</button>
@@ -41,6 +42,18 @@
         let currentMaster = '';
         let currentPanelWindow = null;
 
+        async function postWithUser(path, body) {
+            const vaultUser = document.getElementById('vaultUser') ? document.getElementById('vaultUser').value.trim() : undefined;
+            const payload = Object.assign({}, body || {});
+            if (vaultUser) payload.username = vaultUser;
+            const res = await fetch(path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            return await res.json();
+        }
+
         async function loadAccounts() {
             const master = document.getElementById('master').value;
             currentMaster = master;
@@ -56,13 +69,7 @@
             currentMaster = master;
             status.innerHTML = '<div class="card">Loading accounts...</div>';
 
-            const res = await fetch('/discord/accounts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ master })
-            });
-
-            const data = await res.json();
+            const data = await postWithUser('/discord/accounts', { master });
 
             if (data.error) {
                 status.innerHTML = `<div class="card">${data.error}</div>`;
@@ -101,12 +108,7 @@
                 return;
             }
 
-            const res = await fetch('/discord/connect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ master, index })
-            });
-            const data = await res.json();
+            const data = await postWithUser('/discord/connect', { master, index });
             if (data.error) {
                 alert(data.error);
                 return;
@@ -123,12 +125,7 @@
                 return;
             }
 
-            const res = await fetch('/discord/disconnect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ master, index })
-            });
-            const data = await res.json();
+            const data = await postWithUser('/discord/disconnect', { master, index });
             if (data.error) {
                 alert(data.error);
                 return;
@@ -162,243 +159,133 @@
 
             try {
                 if (type === 'loadPanel') {
-                    const res = await fetch('/discord/panel', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/panel', { master: currentMaster, index });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'getGuilds') {
-                    const res = await fetch('/discord/guilds', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guilds', { master: currentMaster, index });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'listDMs') {
-                    const res = await fetch('/discord/dm/list', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/dm/list', { master: currentMaster, index });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'getChannels') {
-                    const res = await fetch('/discord/guild/channels', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId: message.guildId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guild/channels', { master: currentMaster, index, guildId: message.guildId });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'getMembers') {
-                    const res = await fetch('/discord/guild/members', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId: message.guildId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guild/members', { master: currentMaster, index, guildId: message.guildId });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'getChannelMessages') {
-                    const res = await fetch('/discord/guild/channel/messages', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId, limit })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guild/channel/messages', { master: currentMaster, index, guildId, channelId, limit });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'sendChannelMessage') {
-                    const res = await fetch('/discord/guild/channel/send', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId, content })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guild/channel/send', { master: currentMaster, index, guildId, channelId, content });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'sendChannelPoll') {
-                    const res = await fetch('/discord/guild/channel/poll/send', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId, question, answers, duration, allowMultiselect })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guild/channel/poll/send', { master: currentMaster, index, guildId, channelId, question, answers, duration, allowMultiselect });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'voteChannelPoll') {
-                    const res = await fetch('/discord/guild/channel/poll/vote', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId, messageId, answerIds })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guild/channel/poll/vote', { master: currentMaster, index, guildId, channelId, messageId, answerIds });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'getVoiceChannelInfo') {
-                    const res = await fetch('/discord/guild/voicechannel/info', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guild/voicechannel/info', { master: currentMaster, index, guildId, channelId });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'joinVoiceChannel') {
-                    const res = await fetch('/discord/guild/voicechannel/join', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guild/voicechannel/join', { master: currentMaster, index, guildId, channelId });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'leaveVoiceChannel') {
-                    const res = await fetch('/discord/guild/voicechannel/leave', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/guild/voicechannel/leave', { master: currentMaster, index, guildId });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'sendDirectMessage') {
-                    const res = await fetch('/discord/dm/send', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, userId, content })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/dm/send', { master: currentMaster, index, userId, content });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'readDirectMessages') {
-                    const res = await fetch('/discord/dm/messages', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, userId, limit })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/dm/messages', { master: currentMaster, index, userId, limit });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'sendFriendRequest') {
-                    const res = await fetch('/discord/friend/add', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, userId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/friend/add', { master: currentMaster, index, userId });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'acceptFriendRequest') {
-                    const res = await fetch('/discord/friend/accept', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, userId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/friend/accept', { master: currentMaster, index, userId });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'declineFriendRequest') {
-                    const res = await fetch('/discord/friend/decline', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, userId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/friend/decline', { master: currentMaster, index, userId });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'getFriendRequests') {
-                    const res = await fetch('/discord/friend/requests', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/friend/requests', { master: currentMaster, index });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'declineFriendRequest') {
-                    const res = await fetch('/discord/friend/decline', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, userId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/friend/decline', { master: currentMaster, index, userId });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'joinServer') {
-                    const res = await fetch('/discord/server/join', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, invite })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/server/join', { master: currentMaster, index, invite });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'createServer') {
-                    const res = await fetch('/discord/server/create', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, serverName })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/server/create', { master: currentMaster, index, serverName });
                     await reply(data);
                     return;
                 }
 
                 if (type === 'leaveServer') {
-                    const res = await fetch('/discord/server/leave', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ master: currentMaster, index, guildId })
-                    });
-                    const data = await res.json();
+                    const data = await postWithUser('/discord/server/leave', { master: currentMaster, index, guildId });
                     await reply(data);
                     return;
                 }
