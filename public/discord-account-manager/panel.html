@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Discord Account Panel</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #000; color: #fff; }
+        .discord-container { display: flex; height: 100vh; }
+        
+        .icon-sidebar { width: 72px; background: #0b0b0b; display: flex; flex-direction: column; align-items: center; padding: 8px 0; border-right: 1px solid #222; overflow-y: auto; }
+        .guild-icon { width: 48px; height: 48px; border-radius: 50%; background: #222; cursor: pointer; display: flex; align-items: center; justify-content: center; margin: 4px 0; transition: all 0.2s; border: 2px solid #444; font-weight: bold; font-size: 20px; color: #fff; }
+        .guild-icon:hover { border-color: #666; background: #333; }
+        .guild-icon.active { border-color: #fff; background: #444; }
+        .add-server-btn { width: 48px; height: 48px; border-radius: 50%; background: #222; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-top: auto; margin-bottom: 8px; font-size: 24px; transition: all 0.2s; border: 2px solid #444; color: #fff; }
+        .add-server-btn:hover { background: #333; border-color: #666; }
+        
+        .sidebar-left { width: 200px; background: #0b0b0b; border-right: 1px solid #222; overflow-y: auto; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 12px; border-bottom: 1px solid #222; }
+        .sidebar-header h3 { margin: 0; font-size: 14px; font-weight: 600; color: #fff; }
+        .sidebar-content { flex: 1; overflow-y: auto; }
+        
+        .sidebar-right { width: 220px; background: #0b0b0b; border-left: 1px solid #222; overflow-y: auto; }
+        .main-content { flex: 1; display: flex; flex-direction: column; background: #000; }
+        
+        .header { background: #0b0b0b; padding: 16px; border-bottom: 1px solid #222; }
+        .header h1 { margin: 0; font-size: 18px; color: #fff; font-weight: 600; }
+        
+        .channel-item, .dm-item { padding: 10px 12px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.2s; font-size: 14px; color: #ddd; }
+        .channel-item:hover, .dm-item:hover { background: #1a1a1a; color: #fff; }
+        .channel-item.active, .dm-item.active { background: #1a1a1a; border-left-color: #fff; color: #fff; }
+        
+        .member-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; cursor: pointer; color: #ddd; }
+        .member-item:hover { background: #1a1a1a; color: #fff; }
+        .member-status { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .status-online { background: #0f0; }
+        .status-idle { background: #ff0; }
+        .status-dnd { background: #f00; }
+        .status-offline { background: #888; }
+        
+        .messages { flex: 1; padding: 16px; overflow-y: auto; }
+        .loading { text-align: center; padding: 20px; color: #666; }
+        .error { color: #ff6b6b; padding: 12px; background: rgba(255, 107, 107, 0.1); border-radius: 4px; margin-bottom: 12px; border: 1px solid #444; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.9); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.open { display: flex; }
+        .modal-content { background: #0b0b0b; border-radius: 8px; padding: 20px; width: 90%; max-width: 400px; border: 1px solid #444; }
+        .modal-content h2 { margin-top: 0; color: #fff; }
+        .modal-input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #444; border-radius: 4px; font-size: 14px; background: #000; color: #fff; }
+        .modal-button { background: #111; color: #fff; border: 1px solid #444; padding: 10px 16px; border-radius: 4px; cursor: pointer; margin-right: 8px; transition: all 0.2s; }
+        .modal-button:hover { background: #222; border-color: #666; }
+        .modal-button.secondary { background: transparent; }
+        .modal-button.secondary:hover { background: #1a1a1a; }
+    </style>
+
+
+</head>
+<body>
+    <div class="discord-container">
+        <!-- Icon Sidebar -->
+        <div class="icon-sidebar" id="icon-sidebar">
+            <div class="guild-icon" onclick="selectFriends()" id="friends-icon" title="Direct Messages">💬</div>
+        </div>
+
+        <!-- Left Sidebar (Channels or DMs) -->
+        <div class="sidebar-left">
+            <div class="sidebar-header">
+                <h3 id="sidebar-title">Direct Messages</h3>
+            </div>
+            <div class="sidebar-content" id="sidebar-content"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="header">
+                <h1 id="content-title">Direct Messages</h1>
+                <div style="float:right; margin-top:-28px; margin-right:16px;">
+                    <span id="voice-status" style="font-size:12px; color:#8f8; background:#062; padding:6px 8px; border-radius:6px; display:none;">Voice: connected</span>
+                    <span id="voice-status-disconnected" style="font-size:12px; color:#f88; background:#400; padding:6px 8px; border-radius:6px; display:inline-block;">Voice: disconnected</span>
+                </div>
+            </div>
+            <div class="messages">
+                <div id="main-content" class="loading">Select a guild or user</div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar (Online Members) -->
+        <div class="sidebar-right">
+            <div class="sidebar-header">
+                <h3>Online</h3>
+            </div>
+            <div id="members" class="loading">Select a guild</div>
+        </div>
+    </div>
+
+    <!-- Add Server Modal -->
+    <div class="modal" id="add-server-modal">
+        <div class="modal-content">
+            <h2>Server Management</h2>
+            
+            <!-- Tabs -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid #444;">
+                <button class="modal-button" id="join-tab" onclick="switchServerTab('join')" style="border: none; background: transparent; border-bottom: 2px solid #fff; border-radius: 0;">Join Server</button>
+                <button class="modal-button" id="create-tab" onclick="switchServerTab('create')" style="border: none; background: transparent; border-bottom: 2px solid #444; border-radius: 0;">Create Server</button>
+            </div>
+            
+            <!-- Join Server Tab -->
+            <div id="join-server-tab" style="display: block;">
+                <input type="text" class="modal-input" id="invite-code" placeholder="Enter invite code or link">
+                <div>
+                    <button class="modal-button" onclick="joinServerFromModal()">Join</button>
+                    <button class="modal-button secondary" onclick="closeAddServerModal()">Cancel</button>
+                </div>
+            </div>
+            
+            <!-- Create Server Tab -->
+            <div id="create-server-tab" style="display: none;">
+                <input type="text" class="modal-input" id="server-name" placeholder="Server name (e.g., My New Server)">
+                <div>
+                    <button class="modal-button" onclick="createServerFromModal()">Create</button>
+                    <button class="modal-button secondary" onclick="closeAddServerModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Captcha/Invite Modal -->
+    <div class="modal" id="captcha-modal">
+        <div class="modal-content">
+            <h2>Captcha Required</h2>
+            <p style="color:#ccc;">Discord requires a captcha to complete this invite. Open the invite in your browser and complete the captcha to join.</p>
+            <input type="text" class="modal-input" id="captcha-invite" readonly>
+            <div>
+                <button class="modal-button" id="open-invite-btn">Open Invite</button>
+                <button class="modal-button secondary" onclick="closeCaptchaModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Poll Modal -->
+    <div class="modal" id="create-poll-modal">
+        <div class="modal-content">
+            <h2>Create Poll</h2>
+            <input type="text" class="modal-input" id="poll-question" placeholder="Poll question">
+            <div id="poll-answers" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+                <input type="text" class="modal-input" placeholder="Answer 1">
+                <input type="text" class="modal-input" placeholder="Answer 2">
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                <input type="number" id="poll-duration" class="modal-input" placeholder="Duration (hrs)" value="24" min="1" max="168" style="width:120px;">
+                <label style="font-size:12px; color:#ccc; display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" id="poll-multiselect"> Allow multiple votes
+                </label>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="modal-button" onclick="sendChannelPoll()">Create Poll</button>
+                <button class="modal-button secondary" onclick="closeCreatePollModal()">Cancel</button>
+                <button class="modal-button secondary" onclick="addPollAnswerInput()">Add Answer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        let currentGuild = null;
+        let currentChannel = null;
+        let currentDM = null;
+        let guildsData = [];
+        const index = new URLSearchParams(window.location.search).get('index');
+        let voiceSocket = null;
+        let audioContext = null;
+        let audioProcessor = null;
+        let localStream = null;
+
+        function escapeJsString(value) {
+            return String(value || '')
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r');
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getVoiceSocketUrl(guildId) {
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            return `${protocol}://${window.location.host}/voice?index=${encodeURIComponent(index)}&guildId=${encodeURIComponent(guildId)}`;
+        }
+
+        async function startBrowserVoice(guildId) {
+            if (voiceSocket && voiceSocket.readyState === 1) return;
+
+            const url = getVoiceSocketUrl(guildId);
+            voiceSocket = new WebSocket(url);
+            voiceSocket.binaryType = 'arraybuffer';
+
+            voiceSocket.onopen = async () => {
+                try {
+                    if (!audioContext) {
+                        audioContext = new AudioContext({ sampleRate: 48000 });
+                    }
+
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    localStream = stream;
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const processor = audioContext.createScriptProcessor(4096, source.channelCount, 2);
+                    audioProcessor = processor;
+
+                    source.connect(processor);
+                    processor.connect(audioContext.destination);
+                    processor.onaudioprocess = (event) => {
+                        if (!voiceSocket || voiceSocket.readyState !== 1) return;
+                        const input = event.inputBuffer;
+                        const channelCount = Math.min(2, input.numberOfChannels);
+                        const length = input.length;
+                        const buffer = new ArrayBuffer(length * 2 * 2);
+                        const view = new DataView(buffer);
+
+                        for (let i = 0; i < length; i++) {
+                            let sampleL = input.getChannelData(0)[i] || 0;
+                            let sampleR = channelCount > 1 ? input.getChannelData(1)[i] : sampleL;
+
+                            sampleL = Math.max(-1, Math.min(1, sampleL));
+                            sampleR = Math.max(-1, Math.min(1, sampleR));
+
+                            view.setInt16(i * 4, sampleL < 0 ? sampleL * 0x8000 : sampleL * 0x7fff, true);
+                            view.setInt16(i * 4 + 2, sampleR < 0 ? sampleR * 0x8000 : sampleR * 0x7fff, true);
+                        }
+
+                        try {
+                            // send raw ArrayBuffer payload (DataView.buffer)
+                            voiceSocket.send(buffer);
+                        } catch (error) {
+                            console.warn('Browser voice send error', error);
+                        }
+                    };
+
+                    voiceSocket.send(JSON.stringify({ type: 'ready' }));
+                } catch (error) {
+                    console.warn('Unable to access microphone', error);
+                }
+            };
+
+            voiceSocket.onmessage = async (event) => {
+                // Accept ArrayBuffer or Blob
+                let buffer;
+                if (event.data instanceof ArrayBuffer) {
+                    buffer = event.data;
+                } else if (event.data instanceof Blob) {
+                    try {
+                        buffer = await event.data.arrayBuffer();
+                    } catch (e) {
+                        console.warn('Failed to read incoming audio blob', e);
+                        return;
+                    }
+                } else {
+                    // ignore non-binary messages
+                    return;
+                }
+
+                if (!audioContext) {
+                    audioContext = new AudioContext({ sampleRate: 48000 });
+                }
+                const view = new DataView(buffer);
+                const sampleCount = Math.floor(view.byteLength / 4);
+                if (sampleCount <= 0) return;
+                const audioBuffer = audioContext.createBuffer(2, sampleCount, 48000);
+                const ch0 = audioBuffer.getChannelData(0);
+                const ch1 = audioBuffer.getChannelData(1);
+
+                for (let i = 0; i < sampleCount; i++) {
+                    ch0[i] = view.getInt16(i * 4, true) / 0x7fff;
+                    ch1[i] = view.getInt16(i * 4 + 2, true) / 0x7fff;
+                }
+
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioContext.destination);
+                try { source.start(); } catch (e) { console.warn('Playback error', e); }
+            };
+
+            voiceSocket.onclose = () => {
+                stopBrowserVoice();
+                setVoiceStatus(false);
+            };
+
+            voiceSocket.onerror = (event) => {
+                console.warn('Browser voice socket error', event);
+                stopBrowserVoice();
+                setVoiceStatus(false);
+            };
+            setVoiceStatus(true);
+        }
+
+        function stopBrowserVoice() {
+            if (voiceSocket) {
+                try {
+                    voiceSocket.close();
+                } catch {
+                }
+                voiceSocket = null;
+            }
+            if (audioProcessor) {
+                try {
+                    audioProcessor.disconnect();
+                } catch {
+                }
+                audioProcessor = null;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            setVoiceStatus(false);
+        }
+
+        function setVoiceStatus(connected) {
+            const onEl = document.getElementById('voice-status');
+            const offEl = document.getElementById('voice-status-disconnected');
+            if (connected) {
+                onEl.style.display = 'inline-block';
+                offEl.style.display = 'none';
+            } else {
+                onEl.style.display = 'none';
+                offEl.style.display = 'inline-block';
+            }
+        }
+
+        function openAddServerModal() {
+            document.getElementById('add-server-modal').classList.add('open');
+        }
+
+        function closeAddServerModal() {
+            document.getElementById('add-server-modal').classList.remove('open');
+            document.getElementById('invite-code').value = '';
+            document.getElementById('server-name').value = '';
+        }
+
+        function switchServerTab(tab) {
+            const joinTab = document.getElementById('join-server-tab');
+            const createTab = document.getElementById('create-server-tab');
+            const joinTabBtn = document.getElementById('join-tab');
+            const createTabBtn = document.getElementById('create-tab');
+
+            if (tab === 'join') {
+                joinTab.style.display = 'block';
+                createTab.style.display = 'none';
+                joinTabBtn.style.borderBottomColor = '#fff';
+                createTabBtn.style.borderBottomColor = '#444';
+            } else {
+                joinTab.style.display = 'none';
+                createTab.style.display = 'block';
+                joinTabBtn.style.borderBottomColor = '#444';
+                createTabBtn.style.borderBottomColor = '#fff';
+            }
+        }
+
+        async function createServerFromModal() {
+            const serverName = document.getElementById('server-name').value.trim();
+            if (!serverName) {
+                alert('Enter a server name');
+                return;
+            }
+
+            const data = await sendManagerMessage({ type: 'createServer', index: Number(index), serverName });
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            alert('Server created successfully!');
+            closeAddServerModal();
+            loadGuilds();
+        }
+
+        async function joinServerFromModal() {
+            const invite = document.getElementById('invite-code').value.trim();
+            if (!invite) {
+                alert('Enter an invite code');
+                return;
+            }
+
+            const data = await sendManagerMessage({ type: 'joinServer', index: Number(index), invite });
+
+            if (data.error === 'captcha') {
+                // Show captcha modal with invite link so user can open in browser and solve it manually
+                openCaptchaModal(data.invite || invite, data.message || 'Please solve the captcha in a browser');
+                return;
+            }
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            alert('Server joined!');
+            closeAddServerModal();
+            loadGuilds();
+        }
+
+        function openCaptchaModal(invite, message) {
+            const input = document.getElementById('captcha-invite');
+            input.value = invite;
+            document.getElementById('captcha-modal').classList.add('open');
+
+            const openBtn = document.getElementById('open-invite-btn');
+            openBtn.onclick = () => {
+                // open invite in a new tab so the user can solve the captcha in a real browser session
+                try {
+                    const normalized = invite.startsWith('http') ? invite : `https://discord.gg/${invite}`;
+                    window.open(normalized, '_blank');
+                } catch (e) {
+                    // fallback: copy to clipboard
+                    navigator.clipboard?.writeText(invite).catch(() => {});
+                    alert('Unable to open link automatically — invite copied to clipboard.');
+                }
+            };
+        }
+
+        function closeCaptchaModal() {
+            document.getElementById('captcha-modal').classList.remove('open');
+            document.getElementById('captcha-invite').value = '';
+        }
+
+        async function sendManagerMessage(message) {
+            return new Promise((resolve) => {
+                const requestId = Math.random().toString(36).slice(2);
+                const timeout = setTimeout(() => {
+                    window.removeEventListener('message', handler);
+                    resolve({ error: 'Manager request timed out - is the manager window still open?' });
+                }, 15000); // 15 second timeout
+                
+                const handler = event => {
+                    if (event.origin !== window.location.origin) return;
+                    const data = event.data;
+                    if (!data || data.source !== 'discord-manager' || data.requestId !== requestId) return;
+                    clearTimeout(timeout);
+                    window.removeEventListener('message', handler);
+                    resolve(data);
+                };
+                window.addEventListener('message', handler);
+
+                if (!window.opener || window.opener.closed) {
+                    clearTimeout(timeout);
+                    window.removeEventListener('message', handler);
+                    resolve({ error: 'Panel must be opened from the Discord Account Manager' });
+                    return;
+                }
+
+                window.opener.postMessage({ source: 'discord-panel', requestId, ...message }, window.location.origin);
+            });
+        }
+
+        async function loadGuilds() {
+            const data = await sendManagerMessage({ type: 'getGuilds', index: Number(index) });
+            if (data.error) {
+                document.getElementById('sidebar-content').innerHTML = `<div class="error">${data.error}</div>`;
+                return;
+            }
+
+            guildsData = data.guilds || [];
+            const iconSidebar = document.getElementById('icon-sidebar');
+            
+            // Clear existing guild icons (keep friends and plus button)
+            const existingIcons = iconSidebar.querySelectorAll('.guild-icon:not(#friends-icon)');
+            existingIcons.forEach(icon => icon.remove());
+            
+            // Add guild icons to icon sidebar
+            guildsData.forEach((guild, idx) => {
+                const icon = document.createElement('div');
+                icon.className = 'guild-icon';
+                icon.title = guild.name;
+
+                if (guild.icon) {
+                    icon.style.backgroundImage = `url(${guild.icon})`;
+                    icon.style.backgroundSize = 'cover';
+                    icon.style.backgroundPosition = 'center';
+                    icon.textContent = '';
+                } else {
+                    icon.textContent = guild.name.charAt(0).toUpperCase();
+                }
+
+                icon.onclick = () => selectGuild(guild.id, guild.name, idx);
+                iconSidebar.insertBefore(icon, document.querySelector('.add-server-btn') || iconSidebar.lastChild);
+            });
+
+            // Add plus button if not exists
+            if (!document.querySelector('.add-server-btn')) {
+                const plusBtn = document.createElement('button');
+                plusBtn.className = 'add-server-btn';
+                plusBtn.textContent = '+';
+                plusBtn.title = 'Add Server';
+                plusBtn.onclick = openAddServerModal;
+                iconSidebar.appendChild(plusBtn);
+            }
+        }
+
+        async function selectGuild(guildId, guildName, index) {
+            currentGuild = guildId;
+            currentChannel = null;
+            currentDM = null;
+            
+            // Update active guild icon
+            document.querySelectorAll('.guild-icon').forEach((icon, i) => {
+                icon.classList.toggle('active', i === index + 1); // +1 because first is Friends
+            });
+            
+            document.getElementById('sidebar-title').textContent = guildName;
+            document.getElementById('content-title').textContent = guildName;
+            document.getElementById('main-content').innerHTML = '<div class="loading">Select a channel</div>';
+            
+            await loadChannels(guildId);
+            await loadMembers(guildId);
+        }
+
+        async function selectFriends() {
+            currentGuild = null;
+            currentChannel = null;
+            currentDM = null;
+            
+            // Update active icon
+            document.getElementById('friends-icon').classList.add('active');
+            document.querySelectorAll('.guild-icon').forEach((icon, i) => {
+                if (i > 0) icon.classList.remove('active');
+            });
+            
+            document.getElementById('sidebar-title').textContent = 'Direct Messages';
+            document.getElementById('content-title').textContent = 'Direct Messages';
+            document.getElementById('members').innerHTML = '<div class="loading">Select a user</div>';
+            document.getElementById('main-content').innerHTML = '<div class="loading">Loading friends...</div>';
+            
+            const [dmData, requestData] = await Promise.all([
+                sendManagerMessage({ type: 'listDMs', index: Number(index) }),
+                sendManagerMessage({ type: 'getFriendRequests', index: Number(index) })
+            ]);
+
+            if (dmData.error) {
+                document.getElementById('sidebar-content').innerHTML = `<div class="error">${escapeHtml(dmData.error)}</div>`;
+                return;
+            }
+            if (requestData.error) {
+                document.getElementById('sidebar-content').innerHTML = `<div class="error">${escapeHtml(requestData.error)}</div>`;
+                return;
+            }
+
+            const incomingRequests = requestData.incoming || [];
+            const outgoingRequests = requestData.outgoing || [];
+
+            const incomingHtml = incomingRequests.map((req) => `
+                <div class="channel-item" style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
+                    <span>${escapeHtml(req.username)}${req.discriminator && req.discriminator !== '0000' ? '#' + escapeHtml(req.discriminator) : ''}</span>
+                    <span style="display:flex; gap: 6px;">
+                        <button class="modal-button" onclick="acceptFriendRequest('${escapeJsString(req.id)}')">Accept</button>
+                        <button class="modal-button secondary" onclick="declineFriendRequest('${escapeJsString(req.id)}')">Decline</button>
+                    </span>
+                </div>
+            `).join('');
+
+            const outgoingHtml = outgoingRequests.map((req) => `
+                <div class="channel-item" style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
+                    <span>${escapeHtml(req.username)}${req.discriminator && req.discriminator !== '0000' ? '#' + escapeHtml(req.discriminator) : ''}</span>
+                    <button class="modal-button secondary" onclick="declineFriendRequest('${escapeJsString(req.id)}')">Cancel</button>
+                </div>
+            `).join('');
+
+            const dmList = (dmData.dms || []).map((dm) => `
+                <div class="dm-item" onclick="selectDM('${escapeJsString(dm.id)}', '${escapeJsString(dm.username)}')">
+                    <strong>${escapeHtml(dm.username)}</strong>
+                </div>
+            `).join('');
+
+            document.getElementById('sidebar-content').innerHTML = `
+                <div style="padding: 12px;">
+                    <div style="margin-bottom: 16px;">
+                        <div style="font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">Incoming Friend Requests</div>
+                        ${incomingHtml || '<div class="loading">No incoming requests</div>'}
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <div style="font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">Outgoing Friend Requests</div>
+                        ${outgoingHtml || '<div class="loading">No outgoing requests</div>'}
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">Direct Messages</div>
+                        ${dmList || '<div class="loading">No conversations</div>'}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('main-content').innerHTML = `
+                <div style="padding: 24px; color: #ddd;">
+                    <div style="margin-bottom: 16px; font-size: 16px; color: #fff; font-weight: 600;">Friend Requests</div>
+                    <div style="margin-bottom: 12px;">Send a friend request using a user ID or username.</div>
+                    <div style="display:flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                        <input id="friend-request-input" type="text" placeholder="User ID or username" style="flex:1; min-width:0; padding: 10px; border: 1px solid #444; border-radius: 4px; background: #000; color: #fff;">
+                        <button class="modal-button" onclick="sendFriendRequest()">Send Request</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function selectDM(userId, userName) {
+            currentDM = userId;
+            document.getElementById('content-title').textContent = `@${userName}`;
+            await loadDirectMessages(userId, userName);
+        }
+
+        async function loadDirectMessages(userId, userName) {
+            document.getElementById('main-content').innerHTML = `<div class="loading">Loading DM history with ${escapeHtml(userName)}...</div>`;
+            const data = await sendManagerMessage({ type: 'readDirectMessages', index: Number(index), userId, limit: 50 });
+            if (data.error) {
+                document.getElementById('main-content').innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
+                return;
+            }
+
+            const messages = data.messages || [];
+            const messagesHtml = messages.map(msg => `
+                <div style="margin-bottom: 12px; padding: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.05);">
+                    <div style="font-weight: bold; color: #fff; margin-bottom: 4px;">${escapeHtml(msg.authorUsername || 'Unknown')}</div>
+                    <div style="color: #ddd; word-wrap: break-word;">${escapeHtml(msg.content)}</div>
+                    <div style="font-size: 0.8em; color: #888; margin-top: 4px;">${escapeHtml(new Date(msg.createdTimestamp).toLocaleString())}</div>
+                </div>
+            `).join('');
+
+            const messageInputHtml = `
+                <div style="display: flex; gap: 8px; padding: 12px; border-top: 1px solid #222; background: #0b0b0b;">
+                    <input type="text" id="dm-message-input" placeholder="Send a DM..." style="flex: 1; padding: 10px; border: 1px solid #444; border-radius: 4px; font-size: 14px; background: #000; color: #fff;" onkeypress="if(event.key==='Enter') sendDirectMessage('${escapeJsString(userId)}')">
+                    <button onclick="sendDirectMessage('${escapeJsString(userId)}')" style="background: #111; color: #fff; border: 1px solid #444; padding: 10px 16px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">Send</button>
+                </div>
+            `;
+
+            document.getElementById('main-content').innerHTML = `
+                <div style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+                    <div style="flex: 1; overflow-y: auto; padding: 16px;">
+                        ${messagesHtml || '<div class="loading">No messages yet</div>'}
+                    </div>
+                    ${messageInputHtml}
+                </div>
+            `;
+
+            setTimeout(() => {
+                document.getElementById('dm-message-input')?.focus();
+            }, 0);
+        }
+
+        async function sendDirectMessage(userId) {
+            const input = document.getElementById('dm-message-input');
+            if (!input) return;
+
+            const content = input.value.trim();
+            if (!content) {
+                alert('Message cannot be empty');
+                return;
+            }
+
+            const data = await sendManagerMessage({ type: 'sendDirectMessage', index: Number(index), userId, content });
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            input.value = '';
+            input.focus();
+            await loadDirectMessages(userId, document.getElementById('content-title').textContent.replace(/^@/, ''));
+        }
+
+        async function sendFriendRequest() {
+            const input = document.getElementById('friend-request-input');
+            if (!input) return;
+
+            const target = input.value.trim();
+            if (!target) {
+                alert('Enter a user ID or username');
+                return;
+            }
+
+            const data = await sendManagerMessage({ type: 'sendFriendRequest', index: Number(index), userId: target });
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            alert('Friend request sent');
+            input.value = '';
+            await selectFriends();
+        }
+
+        async function acceptFriendRequest(userId) {
+            const data = await sendManagerMessage({ type: 'acceptFriendRequest', index: Number(index), userId });
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            alert('Friend request accepted');
+            await selectFriends();
+        }
+
+        async function declineFriendRequest(userId) {
+            const data = await sendManagerMessage({ type: 'declineFriendRequest', index: Number(index), userId });
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            alert('Friend request canceled/declined');
+            await selectFriends();
+        }
+
+        async function acceptFriendRequest(userId) {
+            const data = await sendManagerMessage({ type: 'acceptFriendRequest', index: Number(index), userId });
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            alert('Friend request accepted');
+            await selectFriends();
+        }
+
+        async function declineFriendRequest(userId) {
+            const data = await sendManagerMessage({ type: 'declineFriendRequest', index: Number(index), userId });
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            alert('Friend request canceled/declined');
+            await selectFriends();
+        }
+
+        async function loadChannels(guildId) {
+            const data = await sendManagerMessage({ type: 'getChannels', index: Number(index), guildId });
+            if (data.error) {
+                document.getElementById('sidebar-content').innerHTML = `<div class="error">${data.error}</div>`;
+                return;
+            }
+
+            const channels = data.channels || [];
+            
+            // Store channels globally for reference in selectChannel
+            window.channelsData = channels;
+            
+            // Organize channels by category
+            const categories = channels.filter(ch => ch.type === 'GUILD_CATEGORY');
+            const textChannels = channels.filter(ch => ch.type === 'GUILD_TEXT');
+            const voiceChannels = channels.filter(ch => ch.type === 'GUILD_VOICE');
+            
+            let channelsHtml = '';
+            
+            // Render categories with their channels
+            categories.forEach(category => {
+                const categoryChannels = channels.filter(ch => ch.parentId === category.id);
+                const categoryTextChannels = categoryChannels.filter(ch => ch.type === 'GUILD_TEXT');
+                const categoryVoiceChannels = categoryChannels.filter(ch => ch.type === 'GUILD_VOICE');
+                
+                channelsHtml += `<div style="margin-top: 12px;">
+                    <div style="font-size: 12px; font-weight: 600; color: #888; padding: 8px 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        ▼ ${category.name}
+                    </div>`;
+                
+                categoryTextChannels.forEach(ch => {
+                    channelsHtml += `
+                        <div class="channel-item ${ch.id === currentChannel ? 'active' : ''}" onclick="selectChannel('${escapeJsString(guildId)}', '${escapeJsString(ch.id)}', '${escapeJsString(ch.name)}', 'GUILD_TEXT')">
+                            # ${escapeHtml(ch.name)}
+                        </div>`;
+                });
+                
+                categoryVoiceChannels.forEach(ch => {
+                    channelsHtml += `
+                        <div class="channel-item ${ch.id === currentChannel ? 'active' : ''}" onclick="selectChannel('${escapeJsString(guildId)}', '${escapeJsString(ch.id)}', '${escapeJsString(ch.name)}', 'GUILD_VOICE')" style="color: #0f0; font-weight: 500;">
+                            🔊 ${escapeHtml(ch.name)}
+                        </div>`;
+                });
+                
+                channelsHtml += `</div>`;
+            });
+            
+            // Render uncategorized text channels
+            const uncategorizedText = textChannels.filter(ch => !ch.parentId);
+            if (uncategorizedText.length > 0) {
+                if (categories.length > 0) {
+                    channelsHtml += `<div style="margin-top: 12px;">
+                        <div style="font-size: 12px; font-weight: 600; color: #888; padding: 8px 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                            ▼ Other Channels
+                        </div>`;
+                }
+                uncategorizedText.forEach(ch => {
+                    channelsHtml += `
+                        <div class="channel-item ${ch.id === currentChannel ? 'active' : ''}" onclick="selectChannel('${escapeJsString(guildId)}', '${escapeJsString(ch.id)}', '${escapeJsString(ch.name)}', 'GUILD_TEXT')">
+                            # ${escapeHtml(ch.name)}
+                        </div>`;
+                });
+                if (categories.length > 0) {
+                    channelsHtml += `</div>`;
+                }
+            }
+            
+            // Render uncategorized voice channels
+            const uncategorizedVoice = voiceChannels.filter(ch => !ch.parentId);
+            if (uncategorizedVoice.length > 0) {
+                if (categories.length > 0 || uncategorizedText.length > 0) {
+                    channelsHtml += `<div style="margin-top: 12px;">
+                        <div style="font-size: 12px; font-weight: 600; color: #888; padding: 8px 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                            ▼ Voice Channels
+                        </div>`;
+                }
+                uncategorizedVoice.forEach(ch => {
+                    channelsHtml += `
+                        <div class="channel-item ${ch.id === currentChannel ? 'active' : ''}" onclick="selectChannel('${escapeJsString(guildId)}', '${escapeJsString(ch.id)}', '${escapeJsString(ch.name)}', 'GUILD_VOICE')" style="color: #0f0; font-weight: 500;">
+                            🔊 ${escapeHtml(ch.name)}
+                        </div>`;
+                });
+                if (categories.length > 0 || uncategorizedText.length > 0) {
+                    channelsHtml += `</div>`;
+                }
+            }
+
+            document.getElementById('sidebar-content').innerHTML = channelsHtml || '<div class="loading">No visible channels</div>';
+        }
+
+        async function selectChannel(guildId, channelId, channelName, channelType) {
+            currentChannel = channelId;
+            
+            if (channelType === 'GUILD_VOICE') {
+                document.getElementById('content-title').textContent = `🔊 ${channelName}`;
+                document.getElementById('main-content').innerHTML = '<div class="loading">Loading voice channel...</div>';
+                
+                // Load voice channel info
+                await loadVoiceChannelInfo(guildId, channelId);
+            } else {
+                document.getElementById('content-title').textContent = `# ${channelName}`;
+                document.getElementById('main-content').innerHTML = '<div class="loading">Loading messages...</div>';
+                
+                // Load messages for this text channel
+                await loadChannelMessages(guildId, channelId);
+            }
+            
+            // Reload channels to update active state
+            await loadChannels(guildId);
+        }
+
+        async function loadVoiceChannelInfo(guildId, channelId) {
+            const data = await sendManagerMessage({ type: 'getVoiceChannelInfo', index: Number(index), guildId, channelId });
+            if (data.error) {
+                document.getElementById('main-content').innerHTML = `<div class="error">${data.error}</div>`;
+                return;
+            }
+
+            const members = data.members || [];
+            const channelInfo = `
+                <div style="padding: 16px;">
+                    <div style="margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <div style="font-size: 12px; color: #888; text-transform: uppercase; font-weight: 600;">Channel Info</div>
+                                <div>
+                                    ${data.connected ?
+                                        `<button onclick="leaveVoiceChannel('${guildId}')" style="background: #ff4f4f; color: #fff; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">Leave Voice</button>` :
+                                        `<button onclick="joinVoiceChannel('${guildId}', '${channelId}')" style="background: #1db954; color: #fff; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">Join Voice</button>`
+                                    }
+                                </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                            <div style="font-size: 12px; color: #888; text-transform: uppercase; font-weight: 600;">
+                                Current Members (${members.length})
+                            </div>
+                        </div>
+                        ${members.length > 0 ? `
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                ${members.map(member => `
+                                    <div style="background: rgba(255, 255, 255, 0.05); border-radius: 4px; padding: 12px; display: flex; align-items: center; gap: 12px;">
+                                        <div style="width: 32px; height: 32px; border-radius: 50%; background: #444; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                            ${member.avatar ? `<img src="${member.avatar}" style="width: 32px; height: 32px; border-radius: 50%;">` : '👤'}
+                                        </div>
+                                        <div style="flex: 1; min-width: 0;">
+                                            <div style="font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                                ${member.nickname || member.username}
+                                            </div>
+                                            <div style="font-size: 12px; color: #888; display: flex; gap: 8px; margin-top: 4px;">
+                                                ${member.selfMuted ? '<span style="color: #ff6b6b;">🔇 Muted</span>' : ''}
+                                                ${member.selfDeafened ? '<span style="color: #ff6b6b;">🔕 Deafened</span>' : ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <div style="color: #888; text-align: center; padding: 20px;">No members in this voice channel</div>
+                        `}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('main-content').innerHTML = channelInfo;
+        }
+
+        async function joinVoiceChannel(guildId, channelId) {
+            stopBrowserVoice();
+            const data = await sendManagerMessage({ type: 'joinVoiceChannel', index: Number(index), guildId, channelId });
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            await startBrowserVoice(guildId);
+            alert('Joined voice channel successfully');
+            await loadVoiceChannelInfo(guildId, channelId);
+        }
+
+        async function leaveVoiceChannel(guildId) {
+            const data = await sendManagerMessage({ type: 'leaveVoiceChannel', index: Number(index), guildId });
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            stopBrowserVoice();
+            alert('Left voice channel successfully');
+            await loadVoiceChannelInfo(guildId, currentChannel);
+        }
+
+        async function loadChannelMessages(guildId, channelId) {
+            const data = await sendManagerMessage({ type: 'getChannelMessages', index: Number(index), guildId, channelId, limit: 50 });
+            if (data.error) {
+                document.getElementById('main-content').innerHTML = `<div class="error">${data.error}</div>`;
+                return;
+            }
+
+            const messages = data.messages || [];
+            const messagesHtml = messages.map(msg => `
+                <div style="margin-bottom: 12px; padding: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.05);">
+                    <div style="font-weight: bold; color: #fff; margin-bottom: 4px;">${escapeHtml(msg.authorUsername || 'Unknown')}</div>
+                    <div style="color: #ddd; word-wrap: break-word;">${escapeHtml(msg.content)}</div>
+                    <div style="font-size: 0.8em; color: #888; margin-top: 4px;">${escapeHtml(new Date(msg.createdTimestamp).toLocaleString())}</div>
+                </div>
+            `).join('');
+
+            const messageInputHtml = `
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border-top: 1px solid #222; background: #0b0b0b;">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <input type="text" id="message-input" placeholder="Send a message..." style="flex: 1; min-width:0; padding: 10px; border: 1px solid #444; border-radius: 4px; font-size: 14px; background: #000; color: #fff;" onkeypress="if(event.key==='Enter') sendChannelMessage('${guildId}', '${channelId}')">
+                        <button onclick="sendChannelMessage('${guildId}', '${channelId}')" style="background: #111; color: #fff; border: 1px solid #444; padding: 10px 16px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">Send</button>
+                        <button onclick="openCreatePollModal('${guildId}', '${channelId}')" style="background: #1d7ef7; color: #fff; border: 1px solid #444; padding: 10px 16px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">Create Poll</button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('main-content').innerHTML = `
+                <div style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+                    <div style="flex: 1; overflow-y: auto; padding: 16px;">
+                        ${messagesHtml || '<div class="loading">No messages in this channel</div>'}
+                    </div>
+                    ${messageInputHtml}
+                </div>
+            `;
+
+            // Focus on the input after rendering
+            setTimeout(() => {
+                document.getElementById('message-input')?.focus();
+            }, 0);
+        }
+
+        async function sendChannelMessage(guildId, channelId) {
+            const input = document.getElementById('message-input');
+            if (!input) return;
+
+            const content = input.value.trim();
+            if (!content) {
+                alert('Message cannot be empty');
+                return;
+            }
+
+            const data = await sendManagerMessage({ type: 'sendChannelMessage', index: Number(index), guildId, channelId, content });
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            input.value = '';
+            input.focus();
+            
+            // Reload messages to show the sent message
+            await loadChannelMessages(guildId, channelId);
+        }
+
+        function openCreatePollModal(guildId, channelId) {
+            currentGuild = guildId;
+            currentChannel = channelId;
+            document.getElementById('poll-question').value = '';
+            document.getElementById('poll-duration').value = '24';
+            document.getElementById('poll-multiselect').checked = false;
+            const answersContainer = document.getElementById('poll-answers');
+            answersContainer.innerHTML = `
+                <input type="text" class="modal-input" placeholder="Answer 1">
+                <input type="text" class="modal-input" placeholder="Answer 2">
+            `;
+            document.getElementById('create-poll-modal').classList.add('open');
+        }
+
+        function closeCreatePollModal() {
+            document.getElementById('create-poll-modal').classList.remove('open');
+        }
+
+        function addPollAnswerInput() {
+            const answersContainer = document.getElementById('poll-answers');
+            const inputs = answersContainer.querySelectorAll('input');
+            if (inputs.length >= 5) {
+                alert('A poll can have at most 5 answers');
+                return;
+            }
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'modal-input';
+            input.placeholder = `Answer ${inputs.length + 1}`;
+            answersContainer.appendChild(input);
+        }
+
+        async function sendChannelPoll() {
+            const question = document.getElementById('poll-question')?.value.trim();
+            const durationValue = Number(document.getElementById('poll-duration')?.value);
+            const allowMultiselect = document.getElementById('poll-multiselect')?.checked;
+            const answers = Array.from(document.querySelectorAll('#poll-answers input'))
+                .map(input => input.value.trim())
+                .filter(value => value);
+
+            if (!question) {
+                alert('Poll question is required');
+                return;
+            }
+
+            if (answers.length < 2) {
+                alert('Enter at least two poll answers');
+                return;
+            }
+
+            const data = await sendManagerMessage({
+                type: 'sendChannelPoll',
+                index: Number(index),
+                guildId: currentGuild,
+                channelId: currentChannel,
+                question,
+                answers,
+                duration: durationValue,
+                allowMultiselect
+            });
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            closeCreatePollModal();
+            alert('Poll created successfully');
+            await loadChannelMessages(currentGuild, currentChannel);
+        }
+
+        async function voteChannelPoll(guildId, channelId, messageId, answerId) {
+            const data = await sendManagerMessage({
+                type: 'voteChannelPoll',
+                index: Number(index),
+                guildId,
+                channelId,
+                messageId,
+                answerIds: [answerId]
+            });
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            await loadChannelMessages(guildId, channelId);
+        }
+
+        async function loadMembers(guildId) {
+            const data = await sendManagerMessage({ type: 'getMembers', index: Number(index), guildId });
+            if (data.error) {
+                document.getElementById('members').innerHTML = `<div class="error">${data.error}</div>`;
+                return;
+            }
+
+            const members = data.members || [];
+            const membersList = members.filter(m => m.status !== 'offline').map(member => `
+                <div class="member-item">
+                    <div class="member-status status-${member.status}"></div>
+                    <div style="flex: 1; min-width: 0;">
+                        <strong style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${member.nickname || member.username}</strong>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('members').innerHTML = membersList || '<div class="loading">No online members</div>';
+        }
+
+        window.addEventListener('DOMContentLoaded', loadGuilds);
+    </script>
+</body>
+</html>
+
+

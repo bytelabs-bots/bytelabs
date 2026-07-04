@@ -1,0 +1,33 @@
+{
+  "name": "byte-labs-bot",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@discordjs/opus": "^0.10.0",
+    "@discordjs/voice": "^0.19.2",
+    "discord.js-selfbot-v13": "^3.1.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^7.1.5",
+    "mic": "^2.1.2",
+    "prism-media": "^1.3.5",
+    "speaker": "^0.5.5",
+    "speakeasy": "^2.0.0",
+    "ws": "^8.13.0"
+  },
+  "description": "",
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bytelabs-bots/bytelabs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bytelabs-bots/bytelabs/issues"
+  },
+  "homepage": "https://github.com/bytelabs-bots/bytelabs#readme"
+}

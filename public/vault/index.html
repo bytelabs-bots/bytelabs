@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vault</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+<header class="site-header">
+    <img src="/logo.svg" class="logo" alt="Vault logo">
+    <div class="invertible">
+        <h1>ByteLabs Vault</h1>
+        <p class="hint">Search entries instantly and refresh live TOTP codes every 30 seconds.</p>
+
+        <div id="unlock-panel" class="panel">
+            <input id="master" type="password" placeholder="Master password">
+            <button onclick="loadVault()">Unlock Vault</button>
+        </div>
+
+        <hr>
+
+        <div class="panel">
+            <h3>Add Entry</h3>
+
+            <input id="username" placeholder="Username">
+            <input id="email" placeholder="Email">
+            <input id="password" type="password" placeholder="Password">
+
+            <input id="token" placeholder="Token">
+            <input id="authenticator" placeholder="Authenticator secret">
+
+            <textarea id="backup" placeholder="Backup codes (one per line)"></textarea>
+
+            <button onclick="generateAccount()">Account Generator</button>
+            <button id="add-save-btn" onclick="addEntry()">Save Entry</button>
+        </div>
+
+        <hr>
+
+        <div class="toolbar">
+            <input id="search" placeholder="Search vault entries">
+            <select id="filter">
+                <option value="all">All fields</option>
+                <option value="username">Username</option>
+                <option value="email">Email</option>
+                <option value="password">Password</option>
+                <option value="token">Token</option>
+                <option value="authenticator">Authenticator</option>
+                <option value="backup">Backup codes</option>
+            </select>
+            <button id="lockBtn" style="display:none" onclick="lockVault()">Lock Vault</button>
+        </div>
+
+        <div id="vault"></div>
+
+        <script src="/app.js"></script>
+    </div>
+</header>
+
+</body>
+</html>

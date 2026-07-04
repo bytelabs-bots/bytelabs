@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Discord Account Manager</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .manager-card { margin-bottom: 16px; }
+        .actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .status-pill { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #111; color: #fff; font-size: 0.85rem; margin-top: 8px; }
+        .status-pill.connected { background: #0f8a2a; }
+    </style>
+</head>
+<body>
+    <div style="max-width:960px;margin:40px auto;">
+        <header class="site-header">
+            <img src="/logo.svg" class="logo" alt="Vault logo">
+            <div class="invertible">
+                <h1>Discord Account Manager</h1>
+                <p class="hint">Connect and disconnect Discord accounts from your stored vault tokens with Discord selfbot support.</p>
+
+                <div class="panel">
+                    <input id="master" type="password" placeholder="Master password">
+                    <div class="actions-row">
+                        <button onclick="loadAccounts()">Load Accounts</button>
+                    </div>
+                </div>
+
+                <div id="manager-status" class="panel"></div>
+                <div id="accounts"></div>
+            </div>
+        </header>
+    </div>
+
+    <script>
+        const PANEL_ORIGINS = [
+            window.location.origin,
+            'https://verbose-umbrella-jr5965qjwpq53j5vj-3000.app.github.dev'
+        ];
+        let currentMaster = '';
+        let currentPanelWindow = null;
+
+        async function loadAccounts() {
+            const master = document.getElementById('master').value;
+            currentMaster = master;
+            const status = document.getElementById('manager-status');
+            const list = document.getElementById('accounts');
+
+            if (!master) {
+                status.innerHTML = '<div class="card">Enter your master password first.</div>';
+                list.innerHTML = '';
+                return;
+            }
+
+            currentMaster = master;
+            status.innerHTML = '<div class="card">Loading accounts...</div>';
+
+            const res = await fetch('/discord/accounts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ master })
+            });
+
+            const data = await res.json();
+
+            if (data.error) {
+                status.innerHTML = `<div class="card">${data.error}</div>`;
+                list.innerHTML = '';
+                return;
+            }
+
+            const accounts = data.accounts || [];
+            if (!accounts.length) {
+                list.innerHTML = '<div class="card">No Discord accounts found in the vault.</div>';
+                status.innerHTML = '<div class="card">Vault loaded successfully.</div>';
+                return;
+            }
+
+            status.innerHTML = '<div class="card">Vault loaded successfully.</div>';
+            list.innerHTML = accounts.map(account => `
+                <div class="card manager-card">
+                    <h3>${account.username || 'Unnamed account'}</h3>
+                    <div><b>Email:</b> ${account.email || '—'}</div>
+                    <div><b>Index:</b> ${account.index}</div>
+                    <div class="status-pill ${account.connected ? 'connected' : ''}">${account.connected ? 'Connected' : 'Disconnected'}</div>
+                    ${account.connectedUsername ? `<div><b>Active identity:</b> ${account.connectedUsername}</div>` : ''}
+                    ${account.connectedUserId ? `<div><b>User ID:</b> ${account.connectedUserId}</div>` : ''}
+                    <div class="actions-row" style="margin-top: 12px;">
+                        <button onclick="connectAccount(${account.index})">Connect</button>
+                        <button onclick="disconnectAccount(${account.index})">Disconnect</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function connectAccount(index) {
+            const master = currentMaster;
+            if (!master) {
+                alert('Load the vault first');
+                return;
+            }
+
+            const res = await fetch('/discord/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ master, index })
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            alert(`Connected as ${data.username || 'Discord account'}`);
+            currentPanelWindow = window.open(`/discord-account-manager/panel?index=${index}`, '_blank');
+            loadAccounts();
+        }
+
+        async function disconnectAccount(index) {
+            const master = currentMaster;
+            if (!master) {
+                alert('Load the vault first');
+                return;
+            }
+
+            const res = await fetch('/discord/disconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ master, index })
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            if (currentPanelWindow && !currentPanelWindow.closed) {
+                currentPanelWindow.close();
+                currentPanelWindow = null;
+            }
+            alert('Disconnected');
+            loadAccounts();
+        }
+
+        async function handlePanelMessage(event) {
+            if (!PANEL_ORIGINS.includes(event.origin)) return;
+            const message = event.data;
+            if (!message || message.source !== 'discord-panel') return;
+
+            const { type, requestId, index, invite, guildId, channelId, userId, content, serverName, limit } = message;
+            const reply = async (payload) => {
+                event.source.postMessage({
+                    source: 'discord-manager',
+                    requestId,
+                    ...payload
+                }, event.origin);
+            };
+
+            if (!currentMaster) {
+                await reply({ error: 'Master password not loaded in manager' });
+                return;
+            }
+
+            try {
+                if (type === 'loadPanel') {
+                    const res = await fetch('/discord/panel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'getGuilds') {
+                    const res = await fetch('/discord/guilds', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'listDMs') {
+                    const res = await fetch('/discord/dm/list', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'getChannels') {
+                    const res = await fetch('/discord/guild/channels', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId: message.guildId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'getMembers') {
+                    const res = await fetch('/discord/guild/members', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId: message.guildId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'getChannelMessages') {
+                    const res = await fetch('/discord/guild/channel/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId, limit })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'sendChannelMessage') {
+                    const res = await fetch('/discord/guild/channel/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId, content })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'sendChannelPoll') {
+                    const res = await fetch('/discord/guild/channel/poll/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId, question, answers, duration, allowMultiselect })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'voteChannelPoll') {
+                    const res = await fetch('/discord/guild/channel/poll/vote', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId, messageId, answerIds })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'getVoiceChannelInfo') {
+                    const res = await fetch('/discord/guild/voicechannel/info', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'joinVoiceChannel') {
+                    const res = await fetch('/discord/guild/voicechannel/join', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId, channelId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'leaveVoiceChannel') {
+                    const res = await fetch('/discord/guild/voicechannel/leave', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'sendDirectMessage') {
+                    const res = await fetch('/discord/dm/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, userId, content })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'readDirectMessages') {
+                    const res = await fetch('/discord/dm/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, userId, limit })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'sendFriendRequest') {
+                    const res = await fetch('/discord/friend/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, userId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'acceptFriendRequest') {
+                    const res = await fetch('/discord/friend/accept', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, userId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'declineFriendRequest') {
+                    const res = await fetch('/discord/friend/decline', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, userId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'getFriendRequests') {
+                    const res = await fetch('/discord/friend/requests', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'declineFriendRequest') {
+                    const res = await fetch('/discord/friend/decline', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, userId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'joinServer') {
+                    const res = await fetch('/discord/server/join', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, invite })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'createServer') {
+                    const res = await fetch('/discord/server/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, serverName })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+
+                if (type === 'leaveServer') {
+                    const res = await fetch('/discord/server/leave', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ master: currentMaster, index, guildId })
+                    });
+                    const data = await res.json();
+                    await reply(data);
+                    return;
+                }
+            } catch (error) {
+                await reply({ error: error.message || 'Manager request failed' });
+            }
+        }
+
+        window.addEventListener('message', handlePanelMessage);
+    </script>
+</body>
+</html>

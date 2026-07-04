@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            background: linear-gradient(135deg, #000 0%, #111 100%);
+        }
+        
+        .container {
+            text-align: center;
+            max-width: 600px;
+            animation: slideIn 0.6s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .error-code {
+            font-size: 120px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #ff6b6b, #ff8787);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0;
+            line-height: 1;
+            text-shadow: 0 2px 20px rgba(255, 107, 107, 0.3);
+        }
+        
+        .error-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #fff;
+            margin: 20px 0 10px 0;
+        }
+        
+        .error-message {
+            font-size: 16px;
+            color: #aaa;
+            margin: 10px 0 30px 0;
+            line-height: 1.6;
+        }
+        
+        .error-details {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: left;
+        }
+        
+        .error-details h3 {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0 0 12px 0;
+        }
+        
+        .error-details code {
+            color: #ff8787;
+            background: rgba(255, 107, 107, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .error-details p {
+            margin: 8px 0;
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #111;
+            color: #fff;
+        }
+        
+        .btn-primary:hover {
+            background: #222;
+            border-color: #666;
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: #aaa;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: #555;
+            color: #fff;
+        }
+        
+        .icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+        
+        .suggestions {
+            margin-top: 40px;
+            padding-top: 40px;
+            border-top: 1px solid #333;
+        }
+        
+        .suggestions h3 {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0 0 20px 0;
+        }
+        
+        .suggestion-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            text-align: left;
+        }
+        
+        .suggestion-item {
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid #333;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .suggestion-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: #555;
+        }
+        
+        .suggestion-item a {
+            color: #aaa;
+            text-decoration: none;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .suggestion-item:hover a {
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🔍</div>
+        
+        <h1 class="error-code">404</h1>
+        <h2 class="error-title">Page Not Found</h2>
+        <p class="error-message">
+            The page you're looking for doesn't exist or has been moved.
+        </p>
+        
+        <div class="error-details">
+            <h3>Details</h3>
+            <p><code id="requested-path">-</code></p>
+            <p style="color: #666; font-size: 12px; margin-top: 8px;">
+                The requested resource could not be found on this server.
+            </p>
+        </div>
+        
+        <div class="actions">
+            <a href="/" class="btn btn-primary">Go Home</a>
+            <button class="btn btn-secondary" onclick="history.back()">Go Back</button>
+        </div>
+        
+        <div class="suggestions">
+            <h3>Popular Pages</h3>
+            <div class="suggestion-list">
+                <div class="suggestion-item">
+                    <a href="/">🏠 Home</a>
+                </div>
+                <div class="suggestion-item">
+                    <a href="/vault/">🔐 Vault</a>
+                </div>
+                <div class="suggestion-item">
+                    <a href="/faq/">❓ FAQ</a>
+                </div>
+                <div class="suggestion-item">
+                    <a href="/discord-account-manager/">💬 Discord Manager</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Display the requested path
+        document.getElementById('requested-path').textContent = window.location.pathname;
+        
+        // Log 404 for debugging
+        console.warn(`404 Not Found: ${window.location.pathname}`);
+    </script>
+</body>
+</html>

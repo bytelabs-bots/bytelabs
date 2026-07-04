@@ -1,0 +1,110 @@
+body {
+    background: #000000;
+    color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding: 20px;
+}
+
+.site-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+    max-width: 960px;
+}
+
+.logo {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+}
+
+.invertible {
+    width: 100%;
+    background: #000000;
+    color: #ffffff;
+    padding: 14px;
+    box-sizing: border-box;
+    border-radius: 4px;
+}
+
+.invertible .hint {
+    color: #dcdcdc;
+}
+
+.invertible hr {
+    border: none;
+    border-top: 1px solid #444;
+    margin: 14px 0;
+}
+
+.invertible input,
+.invertible textarea,
+.invertible select {
+    background: #0b0b0b;
+    color: #ffffff;
+    border: 1px solid #444;
+}
+
+.invertible button {
+    background: #ffffff;
+    color: #000000;
+    border: 1px solid #ffffff;
+}
+
+.invertible .card {
+    background: #0a0a0a;
+    border: 1px solid #222;
+}
+
+.hint {
+    color: #222222;
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.panel {
+    margin-bottom: 15px;
+}
+
+.toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+
+input, textarea, button, select {
+    display: block;
+    margin: 5px 0;
+    padding: 10px;
+    background: #ffffff;
+    color: #000000;
+    border: 1px solid #000000;
+}
+
+input, textarea, select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+button {
+    cursor: pointer;
+    background: #000000;
+    color: #ffffff;
+    border: 1px solid #000000;
+    padding: 8px 12px;
+}
+
+.card {
+    background: #ffffff;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 4px;
+    border: 1px solid #000000;
+}
+
+.field {
+    margin: 10px 0;
+}
