@@ -69,6 +69,10 @@ const SAFE_DATA_ROOT = path.resolve(__dirname);
 const CANONICAL_SAFE_DATA_ROOT = fs.realpathSync(SAFE_DATA_ROOT);
 const RAW_SUPPORT_FILE = process.env.SUPPORT_TICKETS_FILE || "./support-tickets.json";
 const RESOLVED_SUPPORT_FILE = path.resolve(CANONICAL_SAFE_DATA_ROOT, RAW_SUPPORT_FILE);
+const supportCandidateRelative = path.relative(CANONICAL_SAFE_DATA_ROOT, RESOLVED_SUPPORT_FILE);
+if (supportCandidateRelative.startsWith("..") || path.isAbsolute(supportCandidateRelative)) {
+    throw new Error("Invalid SUPPORT_TICKETS_FILE path: must stay within application directory");
+}
 const SUPPORT_PARENT_DIR = path.dirname(RESOLVED_SUPPORT_FILE);
 const CANONICAL_SUPPORT_PARENT_DIR = fs.existsSync(SUPPORT_PARENT_DIR)
     ? fs.realpathSync(SUPPORT_PARENT_DIR)
