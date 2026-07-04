@@ -65,6 +65,7 @@ function canUseArecord() {
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const RAW_FILE = process.env.VAULT_FILE || "./vault.json";
+const RAW_VAULTS_DIR = process.env.VAULTS_DIR || "./vaults";
 const SAFE_DATA_ROOT = path.resolve(__dirname);
 const CANONICAL_SAFE_DATA_ROOT = fs.realpathSync(SAFE_DATA_ROOT);
 const RESOLVED_FILE = path.resolve(CANONICAL_SAFE_DATA_ROOT, RAW_FILE);
@@ -151,13 +152,40 @@ app.use(express.static("public", {
     }
 }));
 
-function load() {
-    if (!fs.existsSync(FILE)) return null;
-    return JSON.parse(fs.readFileSync(FILE, "utf8"));
+// Determine vault file path for a given username. If no username provided,
+// fall back to the single-file `FILE` for backwards compatibility.
+const RESOLVED_VAULTS_DIR = path.resolve(CANONICAL_SAFE_DATA_ROOT, RAW_VAULTS_DIR);
+try {
+    if (!fs.existsSync(RESOLVED_VAULTS_DIR)) fs.mkdirSync(RESOLVED_VAULTS_DIR, { recursive: true });
+} catch (e) {
+    // ignore — directory creation best-effort
 }
 
-function save(data) {
-    fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+function vaultFileForUsername(username) {
+    if (!username) return FILE;
+    // only allow safe username characters to avoid traversal
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(username)) {
+        throw new Error("Invalid vault username");
+    }
+    const candidate = path.resolve(RESOLVED_VAULTS_DIR, username, "vault.json");
+    const rel = path.relative(CANONICAL_SAFE_DATA_ROOT, candidate);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+        throw new Error("Invalid vault username path");
+    }
+    return candidate;
+}
+
+function load(username) {
+    const target = vaultFileForUsername(username);
+    if (!fs.existsSync(target)) return null;
+    return JSON.parse(fs.readFileSync(target, "utf8"));
+}
+
+function save(data, username) {
+    const target = vaultFileForUsername(username);
+    const dir = path.dirname(target);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(target, JSON.stringify(data, null, 2));
 }
 
 function loadSupportTickets() {
@@ -591,7 +619,8 @@ app.use("/discord", generalLimiter);
 app.post("/discord/accounts", async (req, res) => {
     const { master } = req.body;
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -626,7 +655,8 @@ app.post("/discord/connect", async (req, res) => {
         return res.json({ error: "Invalid account index" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     let vault;
@@ -662,7 +692,8 @@ app.post("/discord/panel", async (req, res) => {
         return res.json({ error: "Invalid account index" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     let vault;
@@ -698,7 +729,8 @@ app.post("/discord/server/join", async (req, res) => {
         return res.json({ error: "Invalid account index" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -741,7 +773,8 @@ app.post("/discord/server/create", async (req, res) => {
         return res.json({ error: "Server name is required" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -770,7 +803,8 @@ app.post("/discord/server/leave", async (req, res) => {
         return res.json({ error: "Invalid account index" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -804,7 +838,8 @@ app.post("/discord/dm/list", async (req, res) => {
         return res.json({ error: "Invalid account index" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -850,7 +885,8 @@ app.post("/discord/dm/send", async (req, res) => {
         return res.json({ error: "Message content is required" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -884,7 +920,8 @@ app.post("/discord/dm/messages", async (req, res) => {
         return res.json({ error: "User ID is required" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -928,7 +965,8 @@ app.post("/discord/friend/requests", async (req, res) => {
         return res.json({ error: "Invalid account index" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -992,7 +1030,8 @@ app.post("/discord/friend/add", async (req, res) => {
         return res.json({ error: "User ID is required" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1051,7 +1090,8 @@ app.post("/discord/friend/accept", async (req, res) => {
         return res.json({ error: "User ID is required" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1088,7 +1128,8 @@ app.post("/discord/friend/decline", async (req, res) => {
         return res.json({ error: "User ID is required" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1119,7 +1160,8 @@ app.post("/discord/disconnect", async (req, res) => {
         return res.json({ error: "Invalid account index" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1139,7 +1181,8 @@ app.post("/discord/guilds", async (req, res) => {
         return res.json({ error: "Invalid account index" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1178,7 +1221,8 @@ app.post("/discord/guild/channels", async (req, res) => {
         return res.json({ error: "Guild ID is required" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1226,7 +1270,8 @@ app.post("/discord/guild/members", async (req, res) => {
         return res.json({ error: "Guild ID is required" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1281,7 +1326,8 @@ app.post("/discord/guild/channel/messages", async (req, res) => {
         return res.json({ error: "Channel ID is required" });
     }
 
-    let file = load();
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1360,7 +1406,7 @@ app.post("/discord/guild/channel/send", async (req, res) => {
         return res.json({ error: "Message content is required" });
     }
 
-    let file = load();
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1417,7 +1463,7 @@ app.post("/discord/guild/channel/poll/send", async (req, res) => {
 
     const parsedDuration = Math.min(Math.max(Number(duration) || 24, 1), 168);
 
-    let file = load();
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1485,7 +1531,7 @@ app.post("/discord/guild/channel/poll/vote", async (req, res) => {
         return res.json({ error: "Answer IDs are required" });
     }
 
-    let file = load();
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1537,7 +1583,7 @@ app.post("/discord/guild/voicechannel/info", async (req, res) => {
         return res.json({ error: "Channel ID is required" });
     }
 
-    let file = load();
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1606,7 +1652,7 @@ app.post("/discord/guild/voicechannel/join", async (req, res) => {
         return res.json({ error: "Channel ID is required" });
     }
 
-    let file = load();
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1674,7 +1720,7 @@ app.post("/discord/guild/voicechannel/leave", async (req, res) => {
         return res.json({ error: "Guild ID is required" });
     }
 
-    let file = load();
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1707,12 +1753,14 @@ app.post("/discord/guild/voicechannel/leave", async (req, res) => {
 // 📦 GET VAULT (auto-create if missing)
 app.post("/get", moderateLimiter, (req, res) => {
     const { master } = req.body;
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
 
-    let file = load();
+    let file = load(username);
 
     if (!file) {
         const empty = encrypt(JSON.stringify([]), master);
-        save({ vault: empty });
+        const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+        save({ vault: empty }, username);
         return res.json([]);
     }
 
@@ -1739,8 +1787,9 @@ app.post("/get", moderateLimiter, (req, res) => {
 // ➕ ADD ENTRY (user input only)
 app.post("/add", strictLimiter, async (req, res) => {
     const { master, entry } = req.body;
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
 
-    let file = load();
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     let vault;
@@ -1765,7 +1814,7 @@ app.post("/add", strictLimiter, async (req, res) => {
     vault.push(safeEntry);
 
     const encrypted = encrypt(JSON.stringify(vault), master);
-    save({ vault: encrypted });
+    save({ vault: encrypted }, username);
 
     res.json(safeEntry);
 });
@@ -1773,8 +1822,9 @@ app.post("/add", strictLimiter, async (req, res) => {
 // ✏️ Update existing entry by index
 app.post("/update", strictLimiter, async (req, res) => {
     const { master, index, entry } = req.body;
+    const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
 
-    let file = load();
+    let file = load(username);
     if (!file) return res.json({ error: "Vault missing" });
 
     let vault;
@@ -1803,7 +1853,7 @@ app.post("/update", strictLimiter, async (req, res) => {
     vault[index] = safeEntry;
 
     const encrypted = encrypt(JSON.stringify(vault), master);
-    save({ vault: encrypted });
+    save({ vault: encrypted }, username);
 
     const enriched = {
         ...safeEntry,
