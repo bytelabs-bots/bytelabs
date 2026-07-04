@@ -1935,7 +1935,7 @@ app.get("/support", (req, res) => {
     res.sendFile(__dirname + "/public/support/index.html");
 });
 
-app.get("/admin/login", (req, res) => {
+app.get("/admin/login", adminPageLimiter, (req, res) => {
     res.sendFile(__dirname + "/public/admin/login.html");
 });
 
