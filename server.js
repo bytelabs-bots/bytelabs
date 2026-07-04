@@ -2,6 +2,7 @@ const http = require("http");
 const crypto = require("crypto");
 const express = require("express");
 const fs = require("fs");
+const path = require("path");
 const { Writable, PassThrough } = require("stream");
 const { spawnSync } = require("child_process");
 const rateLimit = require("express-rate-limit");
@@ -64,7 +65,12 @@ function canUseArecord() {
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const FILE = process.env.VAULT_FILE || "./vault.json";
-const SUPPORT_FILE = process.env.SUPPORT_TICKETS_FILE || "./support-tickets.json";
+const SAFE_DATA_ROOT = path.resolve(__dirname);
+const RAW_SUPPORT_FILE = process.env.SUPPORT_TICKETS_FILE || "./support-tickets.json";
+const SUPPORT_FILE = path.resolve(SAFE_DATA_ROOT, RAW_SUPPORT_FILE);
+if (SUPPORT_FILE !== SAFE_DATA_ROOT && !SUPPORT_FILE.startsWith(SAFE_DATA_ROOT + path.sep)) {
+    throw new Error("Invalid SUPPORT_TICKETS_FILE path: must stay within application directory");
+}
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
 const ADMIN_SESSION_TTL_MS = Number(process.env.ADMIN_SESSION_TTL_MS || 8 * 60 * 60 * 1000);
