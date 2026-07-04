@@ -1931,7 +1931,7 @@ app.get("/discord-account-manager/panel", (req, res) => {
     res.sendFile(__dirname + "/public/discord-account-manager/panel.html");
 });
 
-app.get("/support", (req, res) => {
+app.get("/support", adminPageLimiter, (req, res) => {
     res.sendFile(__dirname + "/public/support/index.html");
 });
 
