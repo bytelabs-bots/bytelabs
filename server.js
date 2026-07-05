@@ -113,6 +113,16 @@ app.set("trust proxy", 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        ok: true,
+        status: "ok",
+        service: "bytelabs",
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
+});
+
 // 🔒 Rate limiting middleware
 const strictLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
