@@ -99,9 +99,12 @@ const GITHUB_BRANCH = (process.env.GITHUB_BRANCH || "main").trim();
 const GITHUB_VAULTS_PATH = (process.env.GITHUB_VAULTS_PATH || "vaults").trim();
 const GITHUB_SUPPORT_TICKETS_PATH = (process.env.GITHUB_SUPPORT_TICKETS_PATH || "support-tickets.json").trim();
 const GITHUB_ENABLED = Boolean(GITHUB_TOKEN && GITHUB_REPOSITORY);
+const DISCORD_SHARD_COUNT = Math.max(1, Number(process.env.DISCORD_SHARD_COUNT || 1));
+const DISCORD_SHARD_SIZE = Math.max(1, Number(process.env.DISCORD_SHARD_SIZE || 16));
 const discordClients = new Map();
 const discordVoiceConnections = new Map();
 const voiceAudioSessions = new Map();
+const discordShards = new Map();
 const oneYear = 365 * 24 * 60 * 60 * 1000;
 const browserVoiceSockets = new Map(); // Map(sessionKey => Set(ws))
 const adminSessions = new Map();
@@ -162,6 +165,10 @@ app.use(express.static("public", {
 // Determine vault file path for a given username. If no username provided,
 // fall back to the single-file `FILE` for backwards compatibility.
 const RESOLVED_VAULTS_DIR = path.resolve(CANONICAL_SAFE_DATA_ROOT, RAW_VAULTS_DIR);
+
+app.get("/shards", (req, res) => {
+    res.json({ success: true, shards: listShardMetadata() });
+});
 const vaultsDirCandidateRelative = path.relative(CANONICAL_SAFE_DATA_ROOT, RESOLVED_VAULTS_DIR);
 if (vaultsDirCandidateRelative.startsWith("..") || path.isAbsolute(vaultsDirCandidateRelative)) {
     throw new Error("Invalid VAULTS_DIR path: must stay within application directory");
@@ -172,18 +179,71 @@ try {
     // ignore — directory creation best-effort
 }
 
-function vaultFileForUsername(username) {
+function shardFolderName(shardId) {
+    return shardId === 0 ? "shard0" : `shard${shardId}`;
+}
+
+function vaultFileForUsername(username, shardId) {
     if (!username) return FILE;
     // only allow safe username characters to avoid traversal
     if (!/^[a-zA-Z0-9_-]{1,64}$/.test(username)) {
         throw new Error("Invalid vault username");
     }
-    const candidate = path.resolve(RESOLVED_VAULTS_DIR, username, "vault.json");
+    const shardDir = shardId === undefined || shardId === null ? "default" : shardFolderName(Number(shardId));
+    const candidate = path.resolve(RESOLVED_VAULTS_DIR, shardDir, username, "vault.json");
     const rel = path.relative(CANONICAL_SAFE_DATA_ROOT, candidate);
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
         throw new Error("Invalid vault username path");
     }
     return candidate;
+}
+
+function getShardHost(shardId) {
+    if (!Number.isInteger(shardId)) return "https://byte-labs-bots.onrender.com";
+    if (shardId === 0) return "https://byte-labs-bots.onrender.com";
+    return `https://byte-labs-bots-shard${shardId}.onrender.com`;
+}
+
+function listShardMetadata() {
+    const shards = [];
+    for (let shardId = 0; shardId < DISCORD_SHARD_COUNT; shardId += 1) {
+        shards.push({
+            id: shardId,
+            name: shardFolderName(shardId),
+            host: getShardHost(shardId)
+        });
+    }
+    return shards;
+}
+
+function resolveShardIdFromRequest(req) {
+    const raw = (req.body && (req.body.shardId ?? req.body.shard ?? req.body.shard_id)) ?? (req.query && (req.query.shardId ?? req.query.shard ?? req.query.shard_id));
+    if (raw === undefined || raw === null || raw === "") return 0;
+    const normalized = Number(raw);
+    if (!Number.isInteger(normalized)) return 0;
+    const shardId = normalized;
+    if (shardId < 0 || shardId >= DISCORD_SHARD_COUNT) return 0;
+    return shardId;
+}
+
+function findExistingVaultUsername(username, excludeShardId) {
+    if (!username) return null;
+    for (let shardId = 0; shardId < DISCORD_SHARD_COUNT; shardId += 1) {
+        if (shardId === excludeShardId) continue;
+        const target = vaultFileForUsername(username, shardId);
+        if (fs.existsSync(target)) return shardId;
+        if (GITHUB_ENABLED) {
+            try {
+                const remote = githubReadFile(target);
+                if (remote !== null) {
+                    return shardId;
+                }
+            } catch {
+                // ignore
+            }
+        }
+    }
+    return null;
 }
 
 function githubRemotePathFor(targetPath) {
@@ -266,8 +326,8 @@ function githubWriteFile(targetPath, contents) {
     return Boolean(data && !data.message);
 }
 
-function load(username) {
-    const target = vaultFileForUsername(username);
+function load(username, shardId) {
+    const target = vaultFileForUsername(username, shardId);
     if (GITHUB_ENABLED) {
         try {
             const remote = githubReadFile(target);
@@ -283,8 +343,8 @@ function load(username) {
     return JSON.parse(fs.readFileSync(target, "utf8"));
 }
 
-function save(data, username) {
-    const target = vaultFileForUsername(username);
+function save(data, username, shardId) {
+    const target = vaultFileForUsername(username, shardId);
     const dir = path.dirname(target);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
@@ -380,12 +440,38 @@ function getTOTP(secret) {
     }
 }
 
+function getShardId(index) {
+    if (!Number.isInteger(index) || index < 0) return 0;
+    if (DISCORD_SHARD_COUNT <= 1) return 0;
+    return Math.floor(index / DISCORD_SHARD_SIZE) % DISCORD_SHARD_COUNT;
+}
+
 function getDiscordClientKey(index) {
-    return `discord:${index}`;
+    const shardId = getShardId(index);
+    return `discord:${shardId}:${index}`;
 }
 
 function getVoiceConnectionKey(index, guildId) {
-    return `voice:${index}:${guildId}`;
+    const shardId = getShardId(index);
+    return `voice:${shardId}:${index}:${guildId}`;
+}
+
+function registerShardAccount(index) {
+    const shardId = getShardId(index);
+    if (!discordShards.has(shardId)) {
+        discordShards.set(shardId, new Set());
+    }
+    discordShards.get(shardId).add(index);
+}
+
+function unregisterShardAccount(index) {
+    const shardId = getShardId(index);
+    const accounts = discordShards.get(shardId);
+    if (!accounts) return;
+    accounts.delete(index);
+    if (accounts.size === 0) {
+        discordShards.delete(shardId);
+    }
 }
 
 async function disconnectDiscordClient(index) {
@@ -400,14 +486,16 @@ async function disconnectDiscordClient(index) {
         }
     }
 
+    const shardId = getShardId(index);
+
     for (const voiceKey of [...voiceAudioSessions.keys()]) {
-        if (voiceKey.startsWith(`voice:${index}:`)) {
+        if (voiceKey.startsWith(`voice:${shardId}:${index}:`)) {
             cleanupVoiceSession(voiceKey);
         }
     }
 
     for (const voiceKey of [...discordVoiceConnections.keys()]) {
-        if (voiceKey.startsWith(`voice:${index}:`)) {
+        if (voiceKey.startsWith(`voice:${shardId}:${index}:`)) {
             const voiceConnection = discordVoiceConnections.get(voiceKey);
             try {
                 voiceConnection?.destroy();
@@ -419,6 +507,7 @@ async function disconnectDiscordClient(index) {
     }
 
     discordClients.delete(key);
+    unregisterShardAccount(index);
 }
 
 function createNullWritable() {
@@ -732,27 +821,42 @@ async function connectDiscordClient(index, token) {
     await client.login(token);
 
     const key = getDiscordClientKey(index);
+    const shardId = getShardId(index);
     discordClients.set(key, {
         client,
         username: client.user?.username || null,
-        userId: client.user?.id || null
+        userId: client.user?.id || null,
+        shardId
     });
+    registerShardAccount(index);
 
     return {
         connected: true,
         username: client.user?.username || null,
-        userId: client.user?.id || null
+        userId: client.user?.id || null,
+        shardId
     };
 }
 
 // Apply general limiter to all Discord routes
 app.use("/discord", generalLimiter);
 
+app.post("/discord/shards", async (req, res) => {
+    const shardList = Array.from(discordShards.entries()).map(([shardId, accounts]) => ({
+        shardId: Number(shardId),
+        accountCount: accounts.size,
+        indices: Array.from(accounts).sort((a, b) => a - b)
+    }));
+
+    res.json({ success: true, shards: shardList, availableShards: listShardMetadata() });
+});
+
 app.post("/discord/accounts", async (req, res) => {
     const { master } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -769,7 +873,8 @@ app.post("/discord/accounts", async (req, res) => {
                     tokenPresent: Boolean((entry.token || "").trim()),
                     connected: Boolean(active),
                     connectedUsername: active?.username || null,
-                    connectedUserId: active?.userId || null
+                    connectedUserId: active?.userId || null,
+                    shardId: getShardId(index)
                 };
             })
             .filter(entry => entry.tokenPresent);
@@ -782,13 +887,14 @@ app.post("/discord/accounts", async (req, res) => {
 
 app.post("/discord/connect", async (req, res) => {
     const { master, index } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     let vault;
@@ -819,13 +925,14 @@ app.post("/discord/connect", async (req, res) => {
 
 app.post("/discord/panel", async (req, res) => {
     const { master, index } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     let vault;
@@ -856,13 +963,14 @@ app.post("/discord/panel", async (req, res) => {
 
 app.post("/discord/server/join", async (req, res) => {
     const { master, index, invite } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -896,6 +1004,7 @@ app.post("/discord/server/join", async (req, res) => {
 
 app.post("/discord/server/create", async (req, res) => {
     const { master, index, serverName } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -906,7 +1015,7 @@ app.post("/discord/server/create", async (req, res) => {
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -930,13 +1039,14 @@ app.post("/discord/server/create", async (req, res) => {
 
 app.post("/discord/server/leave", async (req, res) => {
     const { master, index, guildId } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -965,13 +1075,14 @@ app.post("/discord/server/leave", async (req, res) => {
 
 app.post("/discord/dm/list", async (req, res) => {
     const { master, index } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1004,6 +1115,7 @@ app.post("/discord/dm/list", async (req, res) => {
 
 app.post("/discord/dm/send", async (req, res) => {
     const { master, index, userId, content } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1018,7 +1130,7 @@ app.post("/discord/dm/send", async (req, res) => {
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1043,6 +1155,7 @@ app.post("/discord/dm/send", async (req, res) => {
 
 app.post("/discord/dm/messages", async (req, res) => {
     const { master, index, userId, limit = 20 } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1053,7 +1166,7 @@ app.post("/discord/dm/messages", async (req, res) => {
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1092,13 +1205,14 @@ app.post("/discord/dm/messages", async (req, res) => {
 
 app.post("/discord/friend/requests", async (req, res) => {
     const { master, index } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1153,6 +1267,7 @@ app.post("/discord/friend/requests", async (req, res) => {
 
 app.post("/discord/friend/add", async (req, res) => {
     const { master, index, userId } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1163,7 +1278,7 @@ app.post("/discord/friend/add", async (req, res) => {
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1213,6 +1328,7 @@ app.post("/discord/friend/add", async (req, res) => {
 
 app.post("/discord/friend/accept", async (req, res) => {
     const { master, index, userId } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1223,7 +1339,7 @@ app.post("/discord/friend/accept", async (req, res) => {
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1251,6 +1367,7 @@ app.post("/discord/friend/accept", async (req, res) => {
 
 app.post("/discord/friend/decline", async (req, res) => {
     const { master, index, userId } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1261,7 +1378,7 @@ app.post("/discord/friend/decline", async (req, res) => {
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1287,13 +1404,14 @@ app.post("/discord/friend/decline", async (req, res) => {
 
 app.post("/discord/disconnect", async (req, res) => {
     const { master, index } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1308,13 +1426,14 @@ app.post("/discord/disconnect", async (req, res) => {
 
 app.post("/discord/guilds", async (req, res) => {
     const { master, index } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1344,6 +1463,7 @@ app.post("/discord/guilds", async (req, res) => {
 
 app.post("/discord/guild/channels", async (req, res) => {
     const { master, index, guildId } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1354,7 +1474,7 @@ app.post("/discord/guild/channels", async (req, res) => {
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1393,6 +1513,7 @@ app.post("/discord/guild/channels", async (req, res) => {
 
 app.post("/discord/guild/members", async (req, res) => {
     const { master, index, guildId, limit = 50 } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1403,7 +1524,7 @@ app.post("/discord/guild/members", async (req, res) => {
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1445,6 +1566,7 @@ app.post("/discord/guild/members", async (req, res) => {
 
 app.post("/discord/guild/channel/messages", async (req, res) => {
     const { master, index, guildId, channelId, limit = 50 } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1459,7 +1581,7 @@ app.post("/discord/guild/channel/messages", async (req, res) => {
     }
 
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1521,6 +1643,7 @@ app.post("/discord/guild/channel/messages", async (req, res) => {
 
 app.post("/discord/guild/channel/send", async (req, res) => {
     const { master, index, guildId, channelId, content } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1538,7 +1661,7 @@ app.post("/discord/guild/channel/send", async (req, res) => {
         return res.json({ error: "Message content is required" });
     }
 
-    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1572,6 +1695,7 @@ app.post("/discord/guild/channel/send", async (req, res) => {
 
 app.post("/discord/guild/channel/poll/send", async (req, res) => {
     const { master, index, guildId, channelId, question, answers, duration = 24, allowMultiselect = false } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1595,7 +1719,7 @@ app.post("/discord/guild/channel/poll/send", async (req, res) => {
 
     const parsedDuration = Math.min(Math.max(Number(duration) || 24, 1), 168);
 
-    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1642,6 +1766,7 @@ app.post("/discord/guild/channel/poll/send", async (req, res) => {
 
 app.post("/discord/guild/channel/poll/vote", async (req, res) => {
     const { master, index, guildId, channelId, messageId, answerIds } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1663,7 +1788,7 @@ app.post("/discord/guild/channel/poll/vote", async (req, res) => {
         return res.json({ error: "Answer IDs are required" });
     }
 
-    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1702,6 +1827,7 @@ app.post("/discord/guild/channel/poll/vote", async (req, res) => {
 
 app.post("/discord/guild/voicechannel/info", async (req, res) => {
     const { master, index, guildId, channelId } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1715,7 +1841,7 @@ app.post("/discord/guild/voicechannel/info", async (req, res) => {
         return res.json({ error: "Channel ID is required" });
     }
 
-    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1771,6 +1897,7 @@ app.post("/discord/guild/voicechannel/info", async (req, res) => {
 
 app.post("/discord/guild/voicechannel/join", async (req, res) => {
     const { master, index, guildId, channelId } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1784,7 +1911,7 @@ app.post("/discord/guild/voicechannel/join", async (req, res) => {
         return res.json({ error: "Channel ID is required" });
     }
 
-    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1843,6 +1970,7 @@ app.post("/discord/guild/voicechannel/join", async (req, res) => {
 
 app.post("/discord/guild/voicechannel/leave", async (req, res) => {
     const { master, index, guildId } = req.body;
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof index !== "number" || index < 0) {
         return res.json({ error: "Invalid account index" });
@@ -1852,7 +1980,7 @@ app.post("/discord/guild/voicechannel/leave", async (req, res) => {
         return res.json({ error: "Guild ID is required" });
     }
 
-    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined);
+    let file = load(req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     try {
@@ -1885,6 +2013,7 @@ app.post("/discord/guild/voicechannel/leave", async (req, res) => {
 // 🆕 CREATE VAULT
 app.post("/create-vault", strictLimiter, (req, res) => {
     const { master, username } = req.body || {};
+    const shardId = resolveShardIdFromRequest(req);
 
     if (typeof master !== "string" || !master.trim()) {
         return res.json({ error: "Master password is required" });
@@ -1896,14 +2025,23 @@ app.post("/create-vault", strictLimiter, (req, res) => {
     }
 
     try {
-        const existing = load(vaultUsername);
+        const existing = load(vaultUsername, shardId);
         if (existing) {
-            return res.json({ error: "Vault already exists for this username" });
+            return res.json({ error: "Vault already exists for this username on this shard" });
+        }
+
+        const conflictingShard = findExistingVaultUsername(vaultUsername, shardId);
+        if (conflictingShard !== null) {
+            return res.json({
+                error: `Vault username already exists on shard ${conflictingShard}. Please go to ${getShardHost(conflictingShard)} and use that shard instead.`,
+                shardId: conflictingShard,
+                host: getShardHost(conflictingShard)
+            });
         }
 
         const empty = encrypt(JSON.stringify([]), master.trim());
-        save({ vault: empty }, vaultUsername);
-        return res.json({ success: true });
+        save({ vault: empty }, vaultUsername, shardId);
+        return res.json({ success: true, shardId, host: getShardHost(shardId) });
     } catch (error) {
         return res.json({ error: error.message || "Unable to create vault" });
     }
@@ -1913,13 +2051,14 @@ app.post("/create-vault", strictLimiter, (req, res) => {
 app.post("/get", moderateLimiter, (req, res) => {
     const { master } = req.body;
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    const shardId = resolveShardIdFromRequest(req);
 
-    let file = load(username);
+    let file = load(username, shardId);
 
     if (!file) {
         const empty = encrypt(JSON.stringify([]), master);
         const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
-        save({ vault: empty }, username);
+        save({ vault: empty }, username, shardId);
         return res.json([]);
     }
 
@@ -1947,8 +2086,9 @@ app.post("/get", moderateLimiter, (req, res) => {
 app.post("/add", strictLimiter, async (req, res) => {
     const { master, entry } = req.body;
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    const shardId = resolveShardIdFromRequest(req);
 
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     let vault;
@@ -1973,7 +2113,7 @@ app.post("/add", strictLimiter, async (req, res) => {
     vault.push(safeEntry);
 
     const encrypted = encrypt(JSON.stringify(vault), master);
-    save({ vault: encrypted }, username);
+    save({ vault: encrypted }, username, shardId);
 
     res.json(safeEntry);
 });
@@ -1982,8 +2122,9 @@ app.post("/add", strictLimiter, async (req, res) => {
 app.post("/update", strictLimiter, async (req, res) => {
     const { master, index, entry } = req.body;
     const username = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : undefined;
+    const shardId = resolveShardIdFromRequest(req);
 
-    let file = load(username);
+    let file = load(username, shardId);
     if (!file) return res.json({ error: "Vault missing" });
 
     let vault;
@@ -2012,7 +2153,7 @@ app.post("/update", strictLimiter, async (req, res) => {
     vault[index] = safeEntry;
 
     const encrypted = encrypt(JSON.stringify(vault), master);
-    save({ vault: encrypted }, username);
+    save({ vault: encrypted }, username, shardId);
 
     const enriched = {
         ...safeEntry,

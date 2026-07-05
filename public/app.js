@@ -1,6 +1,60 @@
 let masterKey = "";
 let vaultEntries = [];
 
+function getSelectedShardId() {
+    const select = document.getElementById("shardSelect");
+    if (!select) return 0;
+    const value = Number(select.value);
+    return Number.isInteger(value) && value >= 0 ? value : 0;
+}
+
+function setSelectedShardId(shardId) {
+    const select = document.getElementById("shardSelect");
+    if (!select) return;
+    const value = String(shardId ?? 0);
+    if (Array.from(select.options).some(option => option.value === value)) {
+        select.value = value;
+    }
+    localStorage.setItem("byteLabsShardId", value);
+}
+
+async function loadShardOptions() {
+    const select = document.getElementById("shardSelect");
+    const hint = document.getElementById("shardHint");
+    if (!select) return;
+
+    try {
+        const res = await fetch("/shards");
+        const data = await res.json();
+        const shards = Array.isArray(data?.shards) && data.shards.length ? data.shards : [{ id: 0, host: window.location.origin, name: "shard0" }];
+        const current = localStorage.getItem("byteLabsShardId") || "0";
+        select.innerHTML = shards.map(shard => `<option value="${shard.id}">${shard.name} • ${shard.host}</option>`).join("");
+        if (Array.from(select.options).some(option => option.value === current)) {
+            select.value = current;
+        } else {
+            select.value = String(shards[0]?.id ?? 0);
+        }
+        if (hint) {
+            const selected = shards.find(shard => String(shard.id) === select.value) || shards[0];
+            hint.textContent = `Selected shard ${selected?.id ?? 0} · ${selected?.host || window.location.origin}`;
+        }
+    } catch {
+        if (hint) hint.textContent = "Shard selection unavailable";
+    }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+    loadShardOptions();
+    const select = document.getElementById("shardSelect");
+    if (select) {
+        select.addEventListener("change", () => {
+            setSelectedShardId(select.value);
+            const hint = document.getElementById("shardHint");
+            if (hint) hint.textContent = `Selected shard ${select.value}`;
+        });
+    }
+});
+
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("/sw.js").catch(err => {
@@ -66,10 +120,12 @@ async function createVault() {
         return;
     }
 
+    const shardId = getSelectedShardId();
+    setSelectedShardId(shardId);
     const res = await fetch("/create-vault", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ master: password, username: vaultOwner })
+        body: JSON.stringify({ master: password, username: vaultOwner, shardId })
     });
 
     const data = await res.json();
@@ -93,10 +149,12 @@ async function loadVault() {
         return;
     }
 
+    const shardId = getSelectedShardId();
+    setSelectedShardId(shardId);
     const res = await fetch("/get", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ master: masterKey, username: vaultOwner })
+        body: JSON.stringify({ master: masterKey, username: vaultOwner, shardId })
     });
 
     const data = await res.json();
@@ -137,12 +195,15 @@ async function addEntry() {
     };
 
     const vaultOwner = document.getElementById("vaultUser") ? document.getElementById("vaultUser").value.trim() : undefined;
+    const shardId = getSelectedShardId();
+    setSelectedShardId(shardId);
     const res = await fetch("/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             master: masterKey,
             username: vaultOwner,
+            shardId,
             entry
         })
     });
@@ -230,10 +291,12 @@ function startEdit(idx) {
             };
 
             const vaultOwner = document.getElementById("vaultUser") ? document.getElementById("vaultUser").value.trim() : undefined;
+            const shardId = getSelectedShardId();
+            setSelectedShardId(shardId);
             const res = await fetch('/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ master: masterKey, username: vaultOwner, index: idx, entry: updated })
+                body: JSON.stringify({ master: masterKey, username: vaultOwner, shardId, index: idx, entry: updated })
             });
 
             const data = await res.json();

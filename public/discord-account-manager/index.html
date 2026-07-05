@@ -21,6 +21,9 @@
                 <p class="hint">Connect and disconnect Discord accounts from your stored vault tokens with Discord selfbot support.</p>
 
                 <div class="panel">
+                    <label for="shardSelect" style="display:block; margin-bottom:6px; font-weight:600;">Shard</label>
+                    <select id="shardSelect"></select>
+                    <div id="shardHint" class="hint" style="margin-top:6px;"></div>
                     <input id="vaultUser" placeholder="Vault username">
                     <input id="master" type="password" placeholder="Master password">
                     <div class="actions-row">
@@ -42,10 +45,51 @@
         let currentMaster = '';
         let currentPanelWindow = null;
 
+        function getSelectedShardId() {
+            const select = document.getElementById('shardSelect');
+            if (!select) return 0;
+            const value = Number(select.value);
+            return Number.isInteger(value) && value >= 0 ? value : 0;
+        }
+
+        function setSelectedShardId(shardId) {
+            const select = document.getElementById('shardSelect');
+            if (!select) return;
+            const value = String(shardId ?? 0);
+            if (Array.from(select.options).some(option => option.value === value)) {
+                select.value = value;
+            }
+            localStorage.setItem('byteLabsShardId', value);
+        }
+
+        async function loadShardOptions() {
+            const select = document.getElementById('shardSelect');
+            const hint = document.getElementById('shardHint');
+            if (!select) return;
+            try {
+                const res = await fetch('/shards');
+                const data = await res.json();
+                const shards = Array.isArray(data?.shards) && data.shards.length ? data.shards : [{ id: 0, host: window.location.origin, name: 'shard0' }];
+                const current = localStorage.getItem('byteLabsShardId') || '0';
+                select.innerHTML = shards.map(shard => `<option value="${shard.id}">${shard.name} • ${shard.host}</option>`).join('');
+                if (Array.from(select.options).some(option => option.value === current)) {
+                    select.value = current;
+                } else {
+                    select.value = String(shards[0]?.id ?? 0);
+                }
+                setSelectedShardId(select.value);
+                if (hint) hint.textContent = `Selected shard ${select.value}`;
+            } catch {
+                if (hint) hint.textContent = 'Shard selection unavailable';
+            }
+        }
+
         async function postWithUser(path, body) {
             const vaultUser = document.getElementById('vaultUser') ? document.getElementById('vaultUser').value.trim() : undefined;
             const payload = Object.assign({}, body || {});
             if (vaultUser) payload.username = vaultUser;
+            payload.shardId = getSelectedShardId();
+            setSelectedShardId(payload.shardId);
             const res = await fetch(path, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -293,6 +337,18 @@
                 await reply({ error: error.message || 'Manager request failed' });
             }
         }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadShardOptions();
+            const select = document.getElementById('shardSelect');
+            if (select) {
+                select.addEventListener('change', () => {
+                    setSelectedShardId(select.value);
+                    const hint = document.getElementById('shardHint');
+                    if (hint) hint.textContent = `Selected shard ${select.value}`;
+                });
+            }
+        });
 
         window.addEventListener('message', handlePanelMessage);
     </script>

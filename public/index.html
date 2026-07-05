@@ -11,10 +11,57 @@
             <img src="/logo.svg" alt="Vault logo" style="width:56px;height:56px;">
             <h1 style="margin-top:18px;">Welcome to ByteLabs</h1>
             <p style="color:#ccc;">This is the project homepage. Visit your vault below:</p>
-            <p><a href="/vault/" style="color:#fff;background:#111;padding:10px 14px;border-radius:4px;text-decoration:none;">Open Vault</a></p>
-            <p><a href="/discord-account-manager/" style="color:#fff;background:#111;padding:10px 14px;border-radius:4px;text-decoration:none;">Open Discord Account Manager</a></p>
+            <div class="panel" style="margin:20px 0;max-width:420px;">
+                <label for="homeShardSelect" style="display:block;margin-bottom:6px;font-weight:600;">Select shard</label>
+                <select id="homeShardSelect" style="width:100%;margin-bottom:10px;"></select>
+                <div id="homeShardHint" class="hint" style="margin-bottom:10px;"></div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="openVaultBtn" type="button">Open Vault</button>
+                    <button id="openManagerBtn" type="button">Open Discord Account Manager</button>
+                </div>
+            </div>
             <p><a href="/faq/" style="color:#fff;background:#111;padding:10px 14px;border-radius:4px;text-decoration:none;">Open FAQ</a></p>
             <p><a href="/support" style="color:#fff;background:#111;padding:10px 14px;border-radius:4px;text-decoration:none;">Open Support Center</a></p>
         </div>
+        <script>
+            async function loadHomeShardOptions() {
+                const select = document.getElementById('homeShardSelect');
+                const hint = document.getElementById('homeShardHint');
+                if (!select) return;
+                try {
+                    const res = await fetch('/shards');
+                    const data = await res.json();
+                    const shards = Array.isArray(data?.shards) && data.shards.length ? data.shards : [{ id: 0, host: window.location.origin, name: 'shard0' }];
+                    const current = localStorage.getItem('byteLabsShardId') || '0';
+                    select.innerHTML = shards.map(shard => `<option value="${shard.id}">${shard.name} • ${shard.host}</option>`).join('');
+                    if (Array.from(select.options).some(option => option.value === current)) {
+                        select.value = current;
+                    } else {
+                        select.value = String(shards[0]?.id ?? 0);
+                    }
+                    if (hint) hint.textContent = `Selected shard ${select.value}`;
+                } catch {
+                    if (hint) hint.textContent = 'Shard selection unavailable';
+                }
+            }
+
+            function resolveShardHost(shardId) {
+                if (Number(shardId) === 0) return window.location.origin;
+                return `https://byte-labs-bots-shard${shardId}.onrender.com`;
+            }
+
+            function openShardPage(target) {
+                const shardId = document.getElementById('homeShardSelect')?.value || '0';
+                const host = resolveShardHost(shardId);
+                localStorage.setItem('byteLabsShardId', shardId);
+                window.location.href = `${host}${target}?shardId=${shardId}`;
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                loadHomeShardOptions();
+                document.getElementById('openVaultBtn')?.addEventListener('click', () => openShardPage('/vault/'));
+                document.getElementById('openManagerBtn')?.addEventListener('click', () => openShardPage('/discord-account-manager/'));
+            });
+        </script>
     </body>
     </html>
