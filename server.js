@@ -155,6 +155,10 @@ app.use(express.static("public", {
 // Determine vault file path for a given username. If no username provided,
 // fall back to the single-file `FILE` for backwards compatibility.
 const RESOLVED_VAULTS_DIR = path.resolve(CANONICAL_SAFE_DATA_ROOT, RAW_VAULTS_DIR);
+const vaultsDirCandidateRelative = path.relative(CANONICAL_SAFE_DATA_ROOT, RESOLVED_VAULTS_DIR);
+if (vaultsDirCandidateRelative.startsWith("..") || path.isAbsolute(vaultsDirCandidateRelative)) {
+    throw new Error("Invalid VAULTS_DIR path: must stay within application directory");
+}
 try {
     if (!fs.existsSync(RESOLVED_VAULTS_DIR)) fs.mkdirSync(RESOLVED_VAULTS_DIR, { recursive: true });
 } catch (e) {
