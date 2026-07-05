@@ -57,6 +57,31 @@ function renderVault() {
     visibleEntries.forEach(renderEntry);
 }
 
+async function createVault() {
+    const vaultOwner = document.getElementById("vaultUser") ? document.getElementById("vaultUser").value.trim() : "";
+    const password = document.getElementById("master").value;
+
+    if (!vaultOwner || !password) {
+        alert("Enter a vault username and master password first.");
+        return;
+    }
+
+    const res = await fetch("/create-vault", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ master: password, username: vaultOwner })
+    });
+
+    const data = await res.json();
+    if (data.error) {
+        alert(data.error);
+        return;
+    }
+
+    masterKey = password;
+    await loadVault();
+}
+
 // 🔓 unlock vault
 async function loadVault() {
     masterKey = document.getElementById("master").value;
