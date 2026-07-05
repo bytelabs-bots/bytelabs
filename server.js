@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const { Writable, PassThrough } = require("stream");
 const { spawnSync } = require("child_process");
 const rateLimit = require("express-rate-limit");
@@ -92,6 +93,12 @@ if (supportRelativePath.startsWith("..") || path.isAbsolute(supportRelativePath)
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
 const ADMIN_SESSION_TTL_MS = Number(process.env.ADMIN_SESSION_TTL_MS || 8 * 60 * 60 * 1000);
+const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || "").trim();
+const GITHUB_REPOSITORY = (process.env.GITHUB_REPOSITORY || process.env.GITHUB_REPO || "").trim();
+const GITHUB_BRANCH = (process.env.GITHUB_BRANCH || "main").trim();
+const GITHUB_VAULTS_PATH = (process.env.GITHUB_VAULTS_PATH || "vaults").trim();
+const GITHUB_SUPPORT_TICKETS_PATH = (process.env.GITHUB_SUPPORT_TICKETS_PATH || "support-tickets.json").trim();
+const GITHUB_ENABLED = Boolean(GITHUB_TOKEN && GITHUB_REPOSITORY);
 const discordClients = new Map();
 const discordVoiceConnections = new Map();
 const voiceAudioSessions = new Map();
@@ -179,8 +186,99 @@ function vaultFileForUsername(username) {
     return candidate;
 }
 
+function githubRemotePathFor(targetPath) {
+    const rel = path.relative(CANONICAL_SAFE_DATA_ROOT, targetPath);
+    return rel.split(path.sep).join("/");
+}
+
+function githubApiRequest(method, pathName, body) {
+    if (!GITHUB_ENABLED) return null;
+
+    const args = [
+        "-sS",
+        "-L",
+        "-X",
+        method,
+        "-H",
+        "Accept: application/vnd.github+json",
+        "-H",
+        `Authorization: Bearer ${GITHUB_TOKEN}`,
+        "-H",
+        "X-GitHub-Api-Version: 2022-11-28"
+    ];
+
+    if (body) {
+        args.push("-H", "Content-Type: application/json");
+        args.push("--data-binary", JSON.stringify(body));
+    }
+
+    args.push(`https://api.github.com${pathName}`);
+    const result = spawnSync("curl", args, { encoding: "utf8" });
+
+    if (result.error) {
+        throw result.error;
+    }
+
+    if (!result.stdout) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(result.stdout);
+    } catch {
+        return result.stdout;
+    }
+}
+
+function githubReadFile(targetPath) {
+    if (!GITHUB_ENABLED) return null;
+
+    const remotePath = githubRemotePathFor(targetPath);
+    const data = githubApiRequest("GET", `/repos/${GITHUB_REPOSITORY}/contents/${encodeURIComponent(remotePath)}?ref=${encodeURIComponent(GITHUB_BRANCH)}`);
+
+    if (!data || data.message === "Not Found") {
+        return null;
+    }
+
+    if (typeof data === "string") {
+        return data;
+    }
+
+    if (data.content) {
+        return Buffer.from(data.content, "base64").toString("utf8");
+    }
+
+    return null;
+}
+
+function githubWriteFile(targetPath, contents) {
+    if (!GITHUB_ENABLED) return false;
+
+    const remotePath = githubRemotePathFor(targetPath);
+    const existing = githubReadFile(targetPath);
+    const payload = {
+        message: existing === null ? `Create ${remotePath}` : `Update ${remotePath}`,
+        content: Buffer.from(contents, "utf8").toString("base64"),
+        branch: GITHUB_BRANCH
+    };
+
+    const data = githubApiRequest("PUT", `/repos/${GITHUB_REPOSITORY}/contents/${encodeURIComponent(remotePath)}`, payload);
+    return Boolean(data && !data.message);
+}
+
 function load(username) {
     const target = vaultFileForUsername(username);
+    if (GITHUB_ENABLED) {
+        try {
+            const remote = githubReadFile(target);
+            if (remote !== null) {
+                return JSON.parse(remote);
+            }
+        } catch {
+            // fall back to local file if GitHub content cannot be read
+        }
+    }
+
     if (!fs.existsSync(target)) return null;
     return JSON.parse(fs.readFileSync(target, "utf8"));
 }
@@ -189,10 +287,32 @@ function save(data, username) {
     const target = vaultFileForUsername(username);
     const dir = path.dirname(target);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    if (GITHUB_ENABLED) {
+        const contents = JSON.stringify(data, null, 2);
+        const wrote = githubWriteFile(target, contents);
+        if (wrote) {
+            fs.writeFileSync(target, contents);
+            return;
+        }
+    }
+
     fs.writeFileSync(target, JSON.stringify(data, null, 2));
 }
 
 function loadSupportTickets() {
+    if (GITHUB_ENABLED) {
+        try {
+            const remote = githubReadFile(path.resolve(CANONICAL_SAFE_DATA_ROOT, GITHUB_SUPPORT_TICKETS_PATH));
+            if (remote !== null) {
+                const parsed = JSON.parse(remote);
+                return Array.isArray(parsed) ? parsed : [];
+            }
+        } catch {
+            // fall back to local file if GitHub content cannot be read
+        }
+    }
+
     if (!fs.existsSync(SUPPORT_FILE)) return [];
     try {
         const parsed = JSON.parse(fs.readFileSync(SUPPORT_FILE, "utf8"));
@@ -203,7 +323,15 @@ function loadSupportTickets() {
 }
 
 function saveSupportTickets(tickets) {
-    fs.writeFileSync(SUPPORT_FILE, JSON.stringify(tickets, null, 2));
+    const payload = JSON.stringify(tickets, null, 2);
+    if (GITHUB_ENABLED) {
+        const wrote = githubWriteFile(path.resolve(CANONICAL_SAFE_DATA_ROOT, GITHUB_SUPPORT_TICKETS_PATH), payload);
+        if (wrote) {
+            fs.writeFileSync(SUPPORT_FILE, payload);
+            return;
+        }
+    }
+    fs.writeFileSync(SUPPORT_FILE, payload);
 }
 
 function parseCookies(req) {
