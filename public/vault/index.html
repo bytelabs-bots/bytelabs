@@ -16,7 +16,10 @@
         <div id="unlock-panel" class="panel">
             <input id="vaultUser" placeholder="Vault username">
             <input id="master" type="password" placeholder="Master password">
-            <button onclick="loadVault()">Unlock Vault</button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button onclick="loadVault()">Unlock Vault</button>
+                <button onclick="createVault()">Create Vault</button>
+            </div>
         </div>
 
         <hr>

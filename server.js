@@ -1754,6 +1754,33 @@ app.post("/discord/guild/voicechannel/leave", async (req, res) => {
     }
 });
 
+// 🆕 CREATE VAULT
+app.post("/create-vault", strictLimiter, (req, res) => {
+    const { master, username } = req.body || {};
+
+    if (typeof master !== "string" || !master.trim()) {
+        return res.json({ error: "Master password is required" });
+    }
+
+    const vaultUsername = typeof username === "string" ? username.trim() : "";
+    if (!vaultUsername) {
+        return res.json({ error: "Vault username is required" });
+    }
+
+    try {
+        const existing = load(vaultUsername);
+        if (existing) {
+            return res.json({ error: "Vault already exists for this username" });
+        }
+
+        const empty = encrypt(JSON.stringify([]), master.trim());
+        save({ vault: empty }, vaultUsername);
+        return res.json({ success: true });
+    } catch (error) {
+        return res.json({ error: error.message || "Unable to create vault" });
+    }
+});
+
 // 📦 GET VAULT (auto-create if missing)
 app.post("/get", moderateLimiter, (req, res) => {
     const { master } = req.body;

@@ -29,4 +29,4 @@ Original text courtesy of the [Speak Up! project](http://web.archive.org/web/201
 
 ## Questions?
 
-If you have questions, please see https://bytelabs-bots.onrender.com/help If that doesn't answer your questions, feel free to [contact us](mailto:bytelabs_jmbitkl6@outlook.com).
+If you have questions, please see https://byte-labs-bots.onrender.com/help If that doesn't answer your questions, feel free to [contact us](mailto:bytelabs_jmbitkl6@outlook.com).
