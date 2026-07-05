@@ -1985,13 +1985,13 @@ app.get("/discord-account-manager/panel", (req, res) => {
     res.sendFile(__dirname + "/public/discord-account-manager/panel.html");
 });
 
-app.get("/support", adminPageLimiter, (req, res) => {
-    res.sendFile(__dirname + "/public/support/index.html");
-});
-
 const adminPageLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100
+});
+
+app.get("/support", adminPageLimiter, (req, res) => {
+    res.sendFile(__dirname + "/public/support/index.html");
 });
 
 app.get("/admin/login", adminPageLimiter, (req, res) => {
