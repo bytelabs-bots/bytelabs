@@ -51,10 +51,14 @@
             }
 
             function openShardPage(target) {
-                const shardId = document.getElementById('homeShardSelect')?.value || '0';
+                const rawShardId = document.getElementById('homeShardSelect')?.value || '0';
+                const parsedShardId = Number.parseInt(rawShardId, 10);
+                const shardId = Number.isFinite(parsedShardId) && parsedShardId >= 0 ? String(parsedShardId) : '0';
                 const host = resolveShardHost(shardId);
                 localStorage.setItem('byteLabsShardId', shardId);
-                window.location.href = `${host}${target}?shardId=${shardId}`;
+                const url = new URL(target, host);
+                url.searchParams.set('shardId', shardId);
+                window.location.href = url.toString();
             }
 
             document.addEventListener('DOMContentLoaded', () => {
