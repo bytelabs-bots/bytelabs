@@ -226,8 +226,9 @@ async function addEntry() {
 // 🧾 render vault card
 function renderEntry(acc) {
     const box = document.getElementById("vault");
+    const idx = typeof acc.index !== 'undefined' ? acc.index : -1;
 
-    box.innerHTML += `
+    box.insertAdjacentHTML('beforeend', `
         <div class="card">
             <div><b>Username:</b> ${escapeHtml(acc.username)}</div>
             <div><b>Email:</b> ${escapeHtml(acc.email)}</div>
@@ -257,10 +258,16 @@ function renderEntry(acc) {
                 <textarea readonly rows="8">${escapeHtml((acc.backupCodes || []).join("\n"))}</textarea>
             </div>
             <div class="actions">
-                <button onclick="startEdit(${typeof acc.index !== 'undefined' ? acc.index : -1})">Edit</button>
+                <button class="edit-entry-btn">Edit</button>
             </div>
         </div>
-    `;
+    `);
+
+    const card = box.lastElementChild;
+    const editBtn = card ? card.querySelector('.edit-entry-btn') : null;
+    if (editBtn) {
+        editBtn.addEventListener('click', () => startEdit(idx));
+    }
 }
 
 function startEdit(idx) {
