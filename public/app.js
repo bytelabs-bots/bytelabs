@@ -394,6 +394,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const generateBtn = document.getElementById("generateAccountBtn");
     if (generateBtn) generateBtn.addEventListener("click", generateAccount);
 
+    const lockBtn = document.getElementById("lockBtn");
+    if (lockBtn) lockBtn.addEventListener("click", lockVault);
+
     setInterval(() => {
         if (masterKey) {
             loadVault();
