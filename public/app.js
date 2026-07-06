@@ -391,6 +391,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("search").addEventListener("input", renderVault);
     document.getElementById("filter").addEventListener("change", renderVault);
 
+    const generateBtn = document.getElementById("generateAccountBtn");
+    if (generateBtn) generateBtn.addEventListener("click", generateAccount);
+
     setInterval(() => {
         if (masterKey) {
             loadVault();
