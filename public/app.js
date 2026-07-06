@@ -138,6 +138,23 @@ async function createVault() {
     await loadVault();
 }
 
+document.addEventListener("DOMContentLoaded", () => {
+    const createBtn = document.getElementById("createVaultBtn");
+    if (createBtn) {
+        createBtn.addEventListener("click", () => {
+            createVault();
+        });
+    }
+
+    const createForm = document.getElementById("createVaultForm");
+    if (createForm) {
+        createForm.addEventListener("submit", event => {
+            event.preventDefault();
+            createVault();
+        });
+    }
+});
+
 // 🔓 unlock vault
 async function loadVault() {
     masterKey = document.getElementById("master").value;
@@ -390,6 +407,12 @@ function lockVault() {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("search").addEventListener("input", renderVault);
     document.getElementById("filter").addEventListener("change", renderVault);
+
+    const generateBtn = document.getElementById("generateAccountBtn");
+    if (generateBtn) generateBtn.addEventListener("click", generateAccount);
+
+    const lockBtn = document.getElementById("lockBtn");
+    if (lockBtn) lockBtn.addEventListener("click", lockVault);
 
     setInterval(() => {
         if (masterKey) {

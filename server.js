@@ -16,10 +16,8 @@ const {
     getVoiceConnection,
     createAudioResource,
     createAudioPlayer,
-    AudioPlayerStatus,
     StreamType,
     EndBehaviorType,
-    entersState,
     VoiceConnectionStatus
 } = require("@discordjs/voice");
 const prism = require("prism-media");
@@ -95,7 +93,6 @@ const ADMIN_SESSION_TTL_MS = Number(process.env.ADMIN_SESSION_TTL_MS || 8 * 60 *
 const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || "").trim();
 const GITHUB_REPOSITORY = (process.env.GITHUB_REPOSITORY || process.env.GITHUB_REPO || "").trim();
 const GITHUB_BRANCH = (process.env.GITHUB_BRANCH || "main").trim();
-const GITHUB_VAULTS_PATH = (process.env.GITHUB_VAULTS_PATH || "vaults").trim();
 const GITHUB_SUPPORT_TICKETS_PATH = (process.env.GITHUB_SUPPORT_TICKETS_PATH || "support-tickets.json").trim();
 const GITHUB_ENABLED = Boolean(GITHUB_TOKEN && GITHUB_REPOSITORY);
 const DISCORD_SHARD_COUNT = Math.max(1, Number(process.env.DISCORD_SHARD_COUNT || 1));
