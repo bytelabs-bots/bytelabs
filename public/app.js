@@ -26,17 +26,17 @@ async function loadShardOptions() {
     try {
         const res = await fetch("/shards");
         const data = await res.json();
-        const shards = Array.isArray(data?.shards) && data.shards.length ? data.shards : [{ id: 0, host: window.location.origin, name: "shard0" }];
-        const current = localStorage.getItem("byteLabsShardId") || "0";
+        const shards = Array.isArray(data?.shards) && data.shards.length ? data.shards : [{ id: 1, host: window.location.origin, name: "shard1" }];
+        const current = localStorage.getItem("byteLabsShardId") || String(shards[0]?.id ?? 1);
         select.innerHTML = shards.map(shard => `<option value="${shard.id}">${shard.name} • ${shard.host}</option>`).join("");
         if (Array.from(select.options).some(option => option.value === current)) {
             select.value = current;
         } else {
-            select.value = String(shards[0]?.id ?? 0);
+            select.value = String(shards[0]?.id ?? 1);
         }
         if (hint) {
             const selected = shards.find(shard => String(shard.id) === select.value) || shards[0];
-            hint.textContent = `Selected shard ${selected?.id ?? 0} · ${selected?.host || window.location.origin}`;
+            hint.textContent = `Selected shard ${selected?.id ?? 1} · ${selected?.host || window.location.origin}`;
         }
     } catch {
         if (hint) hint.textContent = "Shard selection unavailable";

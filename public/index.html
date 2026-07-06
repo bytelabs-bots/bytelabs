@@ -45,13 +45,13 @@
                 try {
                     const res = await fetch('/shards');
                     const data = await res.json();
-                    const shards = Array.isArray(data?.shards) && data.shards.length ? data.shards : [{ id: 0, host: window.location.origin, name: 'shard0' }];
-                    const current = localStorage.getItem('byteLabsShardId') || '0';
+                    const shards = Array.isArray(data?.shards) && data.shards.length ? data.shards : [{ id: 1, host: window.location.origin, name: 'shard1' }];
+                    const current = localStorage.getItem('byteLabsShardId');
                     select.innerHTML = shards.map(shard => `<option value="${shard.id}">${shard.name} • ${shard.host}</option>`).join('');
-                    if (Array.from(select.options).some(option => option.value === current)) {
+                    if (current && Array.from(select.options).some(option => option.value === current)) {
                         select.value = current;
                     } else {
-                        select.value = String(shards[0]?.id ?? 0);
+                        select.value = String(shards[0]?.id ?? 1);
                     }
                     if (hint) hint.textContent = `Selected shard ${select.value}`;
                 } catch {
