@@ -16,7 +16,6 @@ const {
     getVoiceConnection,
     createAudioResource,
     createAudioPlayer,
-    AudioPlayerStatus,
     StreamType,
     EndBehaviorType,
     VoiceConnectionStatus
