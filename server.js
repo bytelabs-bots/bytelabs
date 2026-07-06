@@ -216,7 +216,7 @@ function getShardHost(shardId) {
 
 function listShardMetadata() {
     const shards = [];
-    for (let shardId = 0; shardId < DISCORD_SHARD_COUNT; shardId += 1) {
+    for (let shardId = 1; shardId <= DISCORD_SHARD_COUNT; shardId += 1) {
         shards.push({
             id: shardId,
             name: shardFolderName(shardId),
@@ -232,7 +232,7 @@ function resolveShardIdFromRequest(req) {
     const normalized = Number(raw);
     if (!Number.isInteger(normalized)) return 0;
     const shardId = normalized;
-    if (shardId < 0 || shardId >= DISCORD_SHARD_COUNT) return 0;
+    if (shardId < 1 || shardId > DISCORD_SHARD_COUNT) return 0;
     return shardId;
 }
 
