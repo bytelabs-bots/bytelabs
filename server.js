@@ -3,7 +3,6 @@ const crypto = require("crypto");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const os = require("os");
 const { Writable, PassThrough } = require("stream");
 const { spawnSync } = require("child_process");
 const rateLimit = require("express-rate-limit");
