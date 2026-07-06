@@ -24,6 +24,20 @@
             <p><a href="/support" style="color:#fff;background:#111;padding:10px 14px;border-radius:4px;text-decoration:none;">Open Support Center</a></p>
         </div>
         <script>
+            function isShardZeroHost() {
+                return window.location.hostname === 'byte-labs-bots.onrender.com';
+            }
+
+            function hideHomeShardPanel() {
+                const panel = document.querySelector('.panel');
+                if (!panel) return;
+                if (!isShardZeroHost()) {
+                    panel.style.display = 'none';
+                } else {
+                    panel.style.display = '';
+                }
+            }
+
             async function loadHomeShardOptions() {
                 const select = document.getElementById('homeShardSelect');
                 const hint = document.getElementById('homeShardHint');
@@ -62,9 +76,12 @@
             }
 
             document.addEventListener('DOMContentLoaded', () => {
-                loadHomeShardOptions();
-                document.getElementById('openVaultBtn')?.addEventListener('click', () => openShardPage('/vault/'));
-                document.getElementById('openManagerBtn')?.addEventListener('click', () => openShardPage('/discord-account-manager/'));
+                hideHomeShardPanel();
+                if (isShardZeroHost()) {
+                    loadHomeShardOptions();
+                    document.getElementById('openVaultBtn')?.addEventListener('click', () => openShardPage('/vault/'));
+                    document.getElementById('openManagerBtn')?.addEventListener('click', () => openShardPage('/discord-account-manager/'));
+                }
             });
         </script>
     </body>
