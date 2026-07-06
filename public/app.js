@@ -138,6 +138,23 @@ async function createVault() {
     await loadVault();
 }
 
+document.addEventListener("DOMContentLoaded", () => {
+    const createBtn = document.getElementById("createVaultBtn");
+    if (createBtn) {
+        createBtn.addEventListener("click", () => {
+            createVault();
+        });
+    }
+
+    const createForm = document.getElementById("createVaultForm");
+    if (createForm) {
+        createForm.addEventListener("submit", event => {
+            event.preventDefault();
+            createVault();
+        });
+    }
+});
+
 // 🔓 unlock vault
 async function loadVault() {
     masterKey = document.getElementById("master").value;
