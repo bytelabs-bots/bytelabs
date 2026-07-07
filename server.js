@@ -95,8 +95,9 @@ const GITHUB_REPOSITORY = (process.env.GITHUB_REPOSITORY || process.env.GITHUB_R
 const GITHUB_BRANCH = (process.env.GITHUB_BRANCH || "main").trim();
 const GITHUB_SUPPORT_TICKETS_PATH = (process.env.GITHUB_SUPPORT_TICKETS_PATH || "support-tickets.json").trim();
 const GITHUB_ENABLED = Boolean(GITHUB_TOKEN && GITHUB_REPOSITORY);
-const DISCORD_SHARD_COUNT = Math.max(1, Number(process.env.DISCORD_SHARD_COUNT || 1));
-const DISCORD_SHARD_SIZE = Math.max(1, Number(process.env.DISCORD_SHARD_SIZE || 16));
+const DISCORD_SHARD_COUNT = Math.max(1, Number.parseInt(process.env.DISCORD_SHARD_COUNT || "24", 10));
+const DISCORD_SHARD_SIZE = Math.max(1, Number.parseInt(process.env.DISCORD_SHARD_SIZE || "16", 10));
+const DISCORD_DEFAULT_SHARD_ID = Math.min(Math.max(1, Number.parseInt(process.env.DISCORD_DEFAULT_SHARD_ID || "1", 10)), DISCORD_SHARD_COUNT);
 const discordClients = new Map();
 const discordVoiceConnections = new Map();
 const voiceAudioSessions = new Map();
@@ -224,17 +225,17 @@ function listShardMetadata() {
 
 function resolveShardIdFromRequest(req) {
     const raw = (req.body && (req.body.shardId ?? req.body.shard ?? req.body.shard_id)) ?? (req.query && (req.query.shardId ?? req.query.shard ?? req.query.shard_id));
-    if (raw === undefined || raw === null || raw === "") return 0;
+    if (raw === undefined || raw === null || raw === "") return DISCORD_DEFAULT_SHARD_ID;
     const normalized = Number(raw);
-    if (!Number.isInteger(normalized)) return 0;
+    if (!Number.isInteger(normalized)) return DISCORD_DEFAULT_SHARD_ID;
     const shardId = normalized;
-    if (shardId < 1 || shardId > DISCORD_SHARD_COUNT) return 0;
+    if (shardId < 1 || shardId > DISCORD_SHARD_COUNT) return DISCORD_DEFAULT_SHARD_ID;
     return shardId;
 }
 
 function findExistingVaultUsername(username, excludeShardId) {
     if (!username) return null;
-    for (let shardId = 0; shardId < DISCORD_SHARD_COUNT; shardId += 1) {
+    for (let shardId = 1; shardId <= DISCORD_SHARD_COUNT; shardId += 1) {
         if (shardId === excludeShardId) continue;
         const target = vaultFileForUsername(username, shardId);
         if (fs.existsSync(target)) return shardId;
@@ -447,9 +448,9 @@ function getTOTP(secret) {
 }
 
 function getShardId(index) {
-    if (!Number.isInteger(index) || index < 0) return 0;
-    if (DISCORD_SHARD_COUNT <= 1) return 0;
-    return Math.floor(index / DISCORD_SHARD_SIZE) % DISCORD_SHARD_COUNT;
+    if (!Number.isInteger(index) || index < 0) return DISCORD_DEFAULT_SHARD_ID;
+    if (DISCORD_SHARD_COUNT <= 1) return DISCORD_DEFAULT_SHARD_ID;
+    return 1 + (Math.floor(index / DISCORD_SHARD_SIZE) % DISCORD_SHARD_COUNT);
 }
 
 function getDiscordClientKey(index) {
